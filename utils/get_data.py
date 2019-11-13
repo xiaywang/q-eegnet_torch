@@ -8,24 +8,26 @@ available on http://bnci-horizon-2020.eu/database/data-sets
 from os import path
 import numpy as np
 import scipy.io as sio
+import torch as t
 
 __author__ = "Michael Hersche and Tino Rellstab, modified by Tibor Schneider"
 __email__ = "herschmi@ethz.ch, tinor@ethz.ch, sctibor@ethz.ch"
 
 
 def get_data(subject, training, data_path):
-    '''	Loads the dataset 2a of the BCI Competition IV
+    """
+    Loads the dataset 2a of the BCI Competition IV
     available on http://bnci-horizon-2020.eu/database/data-sets
 
-    keyword arguments:
-    subject -- number of subject in [1, .. ,9]
-    training -- if True, load training data
-                if False, load testing data
-    data_path -- String, path to the BCI IV 2a dataset (.mat files)
+    arguments:
+     - subject:   number of subject in [1, .. ,9]
+     - training:  if True, load training data
+                  if False, load testing data
+     - data_path: String, path to the BCI IV 2a dataset (.mat files)
 
-    Return: data_return,  numpy matrix, size = NO_valid_trial x 22 x 1750
-            class_return, numpy matrix,	size = NO_valid_trial
-    '''
+    Returns: data_return,  numpy matrix, size = NO_valid_trial x 22 x 1750
+             class_return, numpy matrix,	size = NO_valid_trial
+    """
     NO_channels = 22
     NO_tests = 6 * 48
     Window_Length = 7 * 250
@@ -60,3 +62,27 @@ def get_data(subject, training, data_path):
                 NO_valid_trial += 1
 
     return data_return[0:NO_valid_trial, :, :], class_return[0:NO_valid_trial]
+
+
+def as_data_loader(samples, labels, batch_size=64, shuffle=True):
+    """
+    Returns the data as a t.utils.data.DataLoader.
+    Moves data to device if available
+
+    arguments:
+     - samples: np.ndarray, size = [s, C, T]
+     - labels:  np.ndarray, size = [s]
+
+    Returns: t.utils.data.Dataloader
+    """
+    x = t.tensor(samples)
+    y = t.tensor(labels)
+
+    # move data to cuda if device is available
+    if t.cuda.is_available():
+        x.cuda()
+        y.cuda()
+
+    dataset = t.utils.data.TensorDataset(x, y)
+    loader = t.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+    return loader
