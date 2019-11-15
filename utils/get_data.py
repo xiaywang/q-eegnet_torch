@@ -39,7 +39,7 @@ def get_data(subject, training, data_path):
     if training:
         a = sio.loadmat(path.join(data_path, 'A0' + str(subject) + 'T.mat'))
     else:
-        a = sio.loadmat(path.join(data_path, + 'A0' + str(subject) + 'E.mat'))
+        a = sio.loadmat(path.join(data_path, 'A0' + str(subject) + 'E.mat'))
     a_data = a['data']
     for ii in range(0, a_data.size):
         a_data1 = a_data[0, ii]
@@ -75,13 +75,13 @@ def as_data_loader(samples, labels, batch_size=64, shuffle=True):
 
     Returns: t.utils.data.Dataloader
     """
-    x = t.tensor(samples)
-    y = t.tensor(labels)
+    x = t.tensor(samples).to(dtype=t.float)
+    y = t.tensor(labels).to(dtype=t.long) - 1 # labels are from 1 to 4, but torch expects 0 to 3
 
     # move data to cuda if device is available
     if t.cuda.is_available():
-        x.cuda()
-        y.cuda()
+        x = x.cuda()
+        y = y.cuda()
 
     dataset = t.utils.data.TensorDataset(x, y)
     loader = t.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)

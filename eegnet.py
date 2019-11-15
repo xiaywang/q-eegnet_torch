@@ -22,21 +22,26 @@ class EEGNet(t.nn.Module):
             F2 = F1 * D
 
         # Number of input neurons to the final fully connected layer
-        n_features = (T // 8) // 8
+        # TODO the (-1) comes from the fact we don't ues correct same padding.
+        n_features = (((T - 1) // 8) - 1) // 8
 
         # Block 1
-        self.conv1 = t.nn.Conv2d(1, F1, (1, 64))
-        self.batch_norm1 = t.nn.BatchNorm2D(F1)
+        # TODO this convolution should have padding mode=same, but this is not possible for an even
+        #      kernel size. Therefore, we have exactly one output feature less than the net
+        #      described in the paper
+        self.conv1 = t.nn.Conv2d(1, F1, (1, 64), padding=(0, 31))
+        self.batch_norm1 = t.nn.BatchNorm2d(F1)
         self.conv2 = t.nn.Conv2d(F1, D * F1, (C, 1), groups=F1) # depthwise convolution
-        self.batch_norm2 = t.nn.BatchNorm2D(D * F1)
+        self.batch_norm2 = t.nn.BatchNorm2d(D * F1)
         self.dropout1 = t.nn.Dropout(p=p_dropout)
 
         # Block 2
         # Separable Convolution (as described in the paper) is a depthwise convolution followed by
         # a pointwise convolution.
-        self.sep_conv1 = t.nn.Conv2d(D * F1, D * F1, (1, 16), groups=D * F1) # depthwise conv
+        # TODO padding should be same, but we loose one sample
+        self.sep_conv1 = t.nn.Conv2d(D * F1, D * F1, (1, 16), groups=D * F1, padding=(0, 7))
         self.sep_conv2 = t.nn.Conv2d(D * F1, F2, (1, 1)) # pointwise conv
-        self.batch_norm3 = t.nn.BatchNorm2D(F2)
+        self.batch_norm3 = t.nn.BatchNorm2d(F2)
         self.dropout2 = t.nn.Dropout(p=p_dropout)
 
         # Fully connected layer (classifier)
@@ -44,22 +49,22 @@ class EEGNet(t.nn.Module):
 
     def forward(self, x):
         # reshape vector from (s, C, T) to (s, 1, C, T)
-        x = x.reshape(x.shape()[0], 1, x.shape()[1], x.shape()[2])
+        x = x.reshape(x.shape[0], 1, x.shape[1], x.shape[2])
 
         # input dimensions: (s, 1, C, T)
 
         # Block 1
-        x = self.conv1(x)            # output dim: (s, F1, C, T)
+        x = self.conv1(x)            # output dim: (s, F1, C, T-1)
         x = self.batch_norm1(x)
-        x = self.conv2(x)            # output dim: (s, D * F1, 1, T)
+        x = self.conv2(x)            # output dim: (s, D * F1, 1, T-1)
         x = self.batch_norm2(x)
         x = F.elu(x)
         x = F.avg_pool2d(x, (1, 8))  # output dim: (s, D * F1, 1, T // 8)
         x = self.dropout1(x)
 
         # Block2
-        x = self.sep_conv1(x)        # output dim: (s, D * F1, 1, T // 8)
-        x = self.sep_conv2(x)        # output dim: (s, F2, 1, T // 8)
+        x = self.sep_conv1(x)        # output dim: (s, D * F1, 1, T // 8 - 1)
+        x = self.sep_conv2(x)        # output dim: (s, F2, 1, T // 8 - 1)
         x = self.batch_norm3(x)
         x = F.elu(x)
         x = F.avg_pool2d(x, (1, 8))  # output dim: (s, F2, 1, T // 64)
@@ -70,7 +75,7 @@ class EEGNet(t.nn.Module):
 
         # Classification
         x = self.fc(x)               # output dim: (s, N)
-        x = F.softmax(x, dim=0)
+        # x = F.softmax(x, dim=0) # softmax will be applied in the loss function
 
         return x
 
