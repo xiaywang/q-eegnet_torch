@@ -93,7 +93,7 @@ def as_tensor(samples, labels):
     return x, y
 
 
-def as_data_loader(samples, labels, batch_size=64, shuffle=True):
+def as_data_loader(samples, labels, batch_size=32, shuffle=True):
     """
     Returns the data as a t.utils.data.DataLoader.
     Moves data to device if available

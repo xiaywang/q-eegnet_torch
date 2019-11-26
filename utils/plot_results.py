@@ -36,8 +36,8 @@ def plot_loss_accuracy(subject, loss, accuracy, target_dir=None):
 
     # do loss figure
     loss_subfig = fig.add_subplot(121)
-    loss_subfig.plot(x, loss[0,:], label="training")
-    loss_subfig.plot(x, loss[1,:], label="testing")
+    loss_subfig.plot(x, loss[0, :], label="training")
+    loss_subfig.plot(x, loss[1, :], label="testing")
     loss_subfig.set_title("Loss")
     loss_subfig.set_xlabel("Epoch")
     loss_subfig.legend(loc="upper left")

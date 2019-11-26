@@ -47,6 +47,12 @@ class EEGNet(t.nn.Module):
         # Fully connected layer (classifier)
         self.fc = t.nn.Linear(F2 * n_features, N, bias=False)
 
+        # initialize all weights with xavier_normal (same as keras)
+        def init_weight(m):
+            if isinstance(m, t.nn.Conv2d) or isinstance(m, t.nn.Linear):
+                t.nn.init.xavier_normal_(m.weight)
+        self.apply(init_weight)
+
     def forward(self, x):
         # reshape vector from (s, C, T) to (s, 1, C, T)
         x = x.reshape(x.shape[0], 1, x.shape[1], x.shape[2])
