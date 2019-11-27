@@ -1,3 +1,7 @@
+"""
+Utility Functions to plot the results and store on disk
+"""
+
 from os import path
 
 from sklearn.metrics import precision_recall_curve, average_precision_score
@@ -5,7 +9,40 @@ from sklearn.metrics import precision_recall_curve, average_precision_score
 import matplotlib.pyplot as plt
 import torch as t
 
-from misc import one_hot
+from .misc import one_hot
+
+
+def generate_plots(subject, model, test_loader, loss, accuracy, target_dir=None):
+    """
+    Generates all plots and stores them on the disk
+
+    Parameters:
+     - subject:     number between 1 and 9
+     - model:       t.Module, trained model
+     - test_loader: t.utils.data.DataLoader
+     - loss:        t.tensor, size = [epochs]
+     - accuracy:    t.tensor, size = [epochs]
+     - target_dir:  string or os.path, if None, <current_file>/../results is used.
+    """
+
+    # generate loss_accuracy plot
+    plot_loss_accuracy(subject, loss, accuracy, target_dir)
+
+    # generate precision recall plot
+    # necessary to compute the data first
+    model.train(False)
+    # TODO remove this line and combine all batches manually
+    assert len(test_loader) == 1
+    x, y = next(iter(test_loader))
+
+    y_hat = model(x).cpu().detach()
+    y = y.cpu().detach()
+
+    plot_precision_recall_curve(subject, y, y_hat, target_dir=target_dir)
+
+    # It is probably not necessary to move y back to cuda, because the data is no longer used.
+    # But I will do it anyways.
+    y = y.cuda()
 
 
 def plot_loss_accuracy(subject, loss, accuracy, target_dir=None):
@@ -63,8 +100,8 @@ def plot_precision_recall_curve(subject, y, y_pred, n_classes=4, target_dir=None
 
     Parameters:
      - subject:    number of the subject, between 1 and 9
-     - y:          torch.tensor, size=[n_samples], the correct output
-     - y_pred:     torch.tensor, size+[n_samples, n_classes], prediction output
+     - y:          t.tensor, size=[n_samples], the correct output
+     - y_pred:     t.tensor, size+[n_samples, n_classes], prediction output
      - n_classes:  number of classes
      - target_dir: string or os.path, if None, <current_file>/../results is used.
 
@@ -78,7 +115,9 @@ def plot_precision_recall_curve(subject, y, y_pred, n_classes=4, target_dir=None
     precision = {}
     recall = {}
     average_precision = {}
-    y_one_hot = one_hot(y, n_classes)
+
+    y_one_hot = one_hot(y, n_classes=n_classes).detach().numpy()
+    y_pred = y_pred.numpy()
 
     # compute precision and recall for each class
     for i in range(n_classes):
@@ -86,9 +125,8 @@ def plot_precision_recall_curve(subject, y, y_pred, n_classes=4, target_dir=None
         average_precision[i] = average_precision_score(y_one_hot[:, i], y_pred[:, i])
 
     # compute the averaged precision and recall for all classes
-    precision['micro'], recall['micro'] = average_precision_score(y_one_hot.view(-1),
-                                                                  y_pred.view(-1),
-                                                                  average='micro')
+    precision['micro'], recall['micro'], _ = precision_recall_curve(y_one_hot.ravel(),
+                                                                    y_pred.ravel())
     average_precision['micro'] = average_precision_score(y_one_hot, y_pred, average='micro')
 
     # plot the data
@@ -119,5 +157,7 @@ def _get_filename(subject, name, target_dir=None):
     """
 
     if target_dir is None:
-        target_dir = path.dirname(path.realpath(__file__)).join("../results")
+        target_dir = path.dirname(path.realpath(__file__))
+        target_dir = path.join(target_dir, '../results')
+        target_dir = path.realpath(target_dir)
     return path.join(target_dir, f"s{subject}_{name}.png")

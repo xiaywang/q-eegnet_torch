@@ -5,6 +5,7 @@ from tqdm import tqdm
 from eegnet import EEGNet
 from utils.get_data import get_data, as_data_loader, as_tensor
 from utils.kfold_cv import KFoldCV
+from utils.plot_results import generate_plots
 
 
 def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr=0.001,
@@ -83,7 +84,7 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
     return models, loss, accuracy
 
 
-def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progress=True):
+def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progress=True, plot=True):
     """
     Trains a subject specific model for the given subject
 
@@ -140,6 +141,10 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
     # close the progress bar
     if progress:
         pbar.close()
+
+    # generate plots
+    if plot:
+        generate_plots(subject, model, test_loader, loss, accuracy)
 
     return model, loss, accuracy
 

@@ -40,7 +40,7 @@ def get_data(subject, training, data_path=None):
     class_return = np.zeros(NO_tests)
     data_return = np.zeros((NO_tests, NO_channels, Window_Length))
 
-    NO_valid_trial = 0
+    n_valid_trials = 0
     if training:
         a = sio.loadmat(path.join(data_path, 'A0' + str(subject) + 'T.mat'))
     else:
@@ -62,11 +62,13 @@ def get_data(subject, training, data_path=None):
             if a_artifacts[trial] == 0:
                 range_a = int(a_trial[trial])
                 range_b = range_a + Window_Length
-                data_return[NO_valid_trial, :, :] = np.transpose(a_X[range_a:range_b, :22])
-                class_return[NO_valid_trial] = int(a_y[trial])
-                NO_valid_trial += 1
+                data_return[n_valid_trials, :, :] = np.transpose(a_X[range_a:range_b, :22])
+                class_return[n_valid_trials] = int(a_y[trial])
+                n_valid_trials += 1
 
-    return data_return[0:NO_valid_trial, :, :], class_return[0:NO_valid_trial]
+    data_return = data_return[0:n_valid_trials, :, :]
+    data_return = _use_time_window_post_cue(data_return)
+    return data_return, class_return[0:n_valid_trials]
 
 
 def as_tensor(samples, labels):
@@ -108,3 +110,24 @@ def as_data_loader(samples, labels, batch_size=32, shuffle=True):
     dataset = t.utils.data.TensorDataset(x, y)
     loader = t.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
     return loader
+
+
+def _use_time_window_post_cue(x, fs=250, t1_factor=1.5, t2_factor=6):
+    """
+    Prepares the input data to only use the post-cue range.
+
+    Parameters:
+     - x:         np.ndarray, size = [s, C, T], where T should be 1750
+     - fs:        integer, sampling rate
+     - t1_factor: float, window will start at t1_factor * fs
+     - t2_factor: float, window will end at t2_factor * fs
+
+    Returns np.ndarray, size = [s, C, T'], where T' should be 1125 with default values
+    """
+
+    assert t1_factor < t2_factor
+
+    t1 = int(t1_factor * fs)
+    t2 = int(t2_factor * fs)
+
+    return x[:, :, t1:t2]
