@@ -1,0 +1,93 @@
+"""
+Computes metrics and exports to csv
+"""
+
+import os
+
+import numpy as np
+import torch as t
+
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+from .misc import class_decision
+
+
+def get_metrics_from_model(model, test_loader):
+    """
+    computes metrics for result given a model and the training data
+
+    Parameters:
+     - model:       t.nn.Module
+     - test_loader: t.utils.data.DataLoader
+
+    Returns: t.tensor, size=[1, 4]: accuracy, precision, recall, f1
+    """
+    # TODO remove this line and combine all batches manually
+    assert len(test_loader) == 1
+    x, y = next(iter(test_loader))
+
+    y_hat = model(x).cpu().detach()
+    y = y.cpu().detach()
+
+    return get_metrics(y, y_hat)
+
+
+def get_metrics(y, y_pred):
+    """
+    computes metrics for result for a single subject
+
+    Parameters:
+     - y:          t.tensor, size=[n_samples], the correct output
+     - y_pred:     t.tensor, size=[n_samples, n_classes], prediction output
+
+    Returns: t.tensor, size=[1, 4]: accuracy_score, precision_score, recall_score, f1_score
+    """
+
+    y_decision = class_decision(y_pred)
+
+    metrics = t.zeros((1, 4))
+    metrics[0, 0] = accuracy_score(y, y_decision)
+    metrics[0, 1] = precision_score(y, y_decision, average='micro')
+    metrics[0, 2] = recall_score(y, y_decision, average='micro')
+    metrics[0, 3] = f1_score(y, y_decision, average='micro')
+
+    return metrics
+
+
+def metrics_to_csv(metrics, header=True, target_dir=None):
+    """
+    Stores metrics as csv file
+
+    Parameters:
+     - metrics:    t.tensor, size=[n_subjects, 4]
+     - header:     boolean, if True, add a heading row to the csv file
+     - target_dir: path to the folder to store. If None, use the results folder in the project root.
+    """
+    filename = _get_filename("metrics.csv", target_dir)
+    header_row = ''
+    if header:
+        header_row = 'accuracy,precision,recall,f1'
+
+    np.savetxt(filename, metrics, delimiter=',', header=header_row)
+
+
+def _get_filename(name, target_dir=None):
+    """
+    Returns the filename for the metrics.csv file
+
+    Parameters:
+     - name:       name of the file (.csv is appended if not given)
+     - target_dir: path to the folder to store. If None, use the results folder in the project root.
+
+    Return: String of the format: /path/to/target/folder/{name}
+    """
+
+    if target_dir is None:
+        target_dir = os.path.dirname(os.path.realpath(__file__))
+        target_dir = os.path.join(target_dir, '../results')
+        target_dir = os.path.realpath(target_dir)
+
+    if not name.endswith(".csv") or not name.endswith(".CSV"):
+        name += ".csv"
+
+    return os.path.join(target_dir, name)

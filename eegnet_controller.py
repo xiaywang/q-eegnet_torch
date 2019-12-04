@@ -6,10 +6,12 @@ from eegnet import EEGNet
 from utils.get_data import get_data, as_data_loader, as_tensor
 from utils.kfold_cv import KFoldCV
 from utils.plot_results import generate_plots
+from utils.metrics import get_metrics_from_model
+from utils.misc import class_decision
 
 
 def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr=0.001,
-                              progress=True):
+                              progress=True, plot=True):
     """
     Trains a subject specific model for the given subject, using K-Fold Cross Validation
 
@@ -20,11 +22,11 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
      - batch_size: Batch Size
      - lr: Learning Rate
      - progress: bool, if True, displays a progress bar
+     - plot: bool, if True, generates plots
 
-    Returns: (models, loss, accuracy)
-     - models:   List of t.nn.Module, size = [n_splits]
-     - loss:     t.tensor, size = [2, epochs], mean loss of all CV splits
-     - accuracy: t.tensor, size = [2, epochs], mean accuracy of all CV splits
+    Returns: (models, metrics)
+     - models:  List of t.nn.Module, size = [n_splits]
+     - metrics: t.tensor, size=[1, 4], accuracy, precision, recall, f1
     """
 
     # load the raw data
@@ -81,7 +83,8 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
     if progress:
         pbar.close()
 
-    return models, loss, accuracy
+    metrics = get_metrics_from_model(model, val_loader)
+    return models, metrics
 
 
 def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progress=True, plot=True):
@@ -94,10 +97,9 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
      - batch_size: Batch Size
      - lr: Learning Rate
 
-    Returns: (model, loss, accuracy)
-     - model:    t.nn.Module
-     - loss:     t.tensor, size = [2, epochs]
-     - accuracy: t.tensor, size = [2, epochs]
+    Returns: (model, metrics)
+     - model:   t.nn.Module
+     - metrics: t.tensor, size=[1, 4], accuracy, precision, recall, f1
     """
     # load the data
     train_samples, train_labels = get_data(subject, training=True)
@@ -126,12 +128,12 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
     # train model for all epochs
     for epoch in range(epochs):
         # train the model
-        _train_epoch(model, train_loader, loss_function, optimizer)
+        train_loss, train_accuracy = _train_epoch(model, train_loader, loss_function, optimizer)
 
         # collect current loss and accuracy
-        loss[0, epoch] = _test_net(model, train_loader, loss_function, train=True)
+        loss[0, epoch] = train_loss
         loss[1, epoch] = _test_net(model, test_loader, loss_function, train=False)
-        accuracy[0, epoch] = _test_net(model, train_loader, train=True)
+        accuracy[0, epoch] = train_accuracy
         accuracy[1, epoch] = _test_net(model, test_loader, train=False)
 
         pbar.set_description(f"Subject {subject}, accuracy = {accuracy[1, epoch]:1.4f}",
@@ -146,7 +148,8 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
     if plot:
         generate_plots(subject, model, test_loader, loss, accuracy)
 
-    return model, loss, accuracy
+    metrics = get_metrics_from_model(model, test_loader)
+    return model, metrics
 
 
 def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
@@ -160,11 +163,13 @@ def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
      - optimizer:     t.optim.Optimizer
      - scheduler:     t.optim.lr_scheduler or None
 
-    Returns: loss: float
+    Returns: loss: float, accuracy: float
     """
 
     model.train(True)
+    n_samples = 0
     running_loss = 0.0
+    accuracy = 0.0
     for x, y in loader:
         # Forward step
         optimizer.zero_grad()
@@ -176,8 +181,16 @@ def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
         optimizer.step()
         if scheduler:
             scheduler.step()
-        running_loss += loss
-    return loss
+
+        # prepare loss and accuracy
+        n_samples += x.shape[0]
+        running_loss += loss * x.shape[0]
+        decision = class_decision(output)
+        accuracy += (decision == y).sum().item()
+
+    running_loss = running_loss / n_samples
+    accuracy = accuracy / n_samples
+    return running_loss, accuracy
 
 
 def _test_net(model, loader, loss_function=None, train=False):
