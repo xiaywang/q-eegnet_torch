@@ -36,12 +36,20 @@ def generate_plots(subject, model, test_loader, loss, accuracy, target_dir=None)
 
     # necessary to compute the data first
     model.train(False)
-    # TODO remove this line and combine all batches manually
-    assert len(test_loader) == 1
-    x, y = next(iter(test_loader))
 
-    y_hat = model(x).cpu().detach()
+    y_hat = None
+    y = None
+    for x_batch, y_batch in test_loader:
+        output = model(x_batch)
+        if y_hat is None and y is None:
+            y_hat = output
+            y = y_batch
+        else:
+            y_hat = t.cat((y_hat, output), axis=0)
+            y = t.cat((y, y_batch), axis=0)
+
     y = y.cpu().detach()
+    y_hat = y_hat.cpu().detach()
 
     # generate loss_accuracy plot
     plot_loss_accuracy(subject, loss, accuracy, target_dir)

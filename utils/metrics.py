@@ -22,12 +22,19 @@ def get_metrics_from_model(model, test_loader):
 
     Returns: t.tensor, size=[1, 4]: accuracy, precision, recall, f1
     """
-    # TODO remove this line and combine all batches manually
-    assert len(test_loader) == 1
-    x, y = next(iter(test_loader))
+    y_hat = None
+    y = None
+    for x_batch, y_batch in test_loader:
+        output = model(x_batch)
+        if y_hat is None and y is None:
+            y_hat = output
+            y = y_batch
+        else:
+            y_hat = t.cat((y_hat, output), axis=0)
+            y = t.cat((y, y_batch), axis=0)
 
-    y_hat = model(x).cpu().detach()
     y = y.cpu().detach()
+    y_hat = y_hat.cpu().detach()
 
     return get_metrics(y, y_hat)
 
