@@ -8,6 +8,7 @@ from utils.kfold_cv import KFoldCV
 from utils.plot_results import generate_plots
 from utils.metrics import get_metrics_from_model
 from utils.misc import class_decision
+from utils.early_stopping import EarlyStopping
 
 
 def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr=0.001,
@@ -68,7 +69,7 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
         # train all epochs and evaluate
         for epoch in epochs:
             # train the model
-            _train_epoch(model, train_loader, loss_function, optimizer, l1_factor=0.005)
+            _train_epoch(model, train_loader, loss_function, optimizer)
 
             # collect current loss and accuracy
             loss[0, epoch] = _test_net(model, train_loader, loss_function)
@@ -98,7 +99,7 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
      - lr: Learning Rate
 
     Returns: (model, metrics)
-     - model:   t.nn.Module
+     - model:   t.nn.Module, trained model
      - metrics: t.tensor, size=[1, 4], accuracy, precision, recall, f1
     """
     # load the data
@@ -115,7 +116,40 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
     # prepare loss function and optimizer
     loss_function = t.nn.CrossEntropyLoss()
     optimizer = t.optim.Adam(model.parameters(), lr=lr)
-    # scheduler = t.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.9)
+
+    # Early stopping is not allowed in this mode, because the testing data cannot be used for
+    # training!
+    return _train_net(subject, model, train_loader, test_loader, loss_function, optimizer,
+                      epochs=epochs, early_stopping=False, progress=progress, plot=plot)
+
+
+def _train_net(subject, model, train_loader, val_loader, loss_function, optimizer, scheduler=None,
+               epochs=500, early_stopping=True, progress=True, plot=True):
+    """
+    Main training loop
+
+    Parameters:
+     - subject:        Integer, subject ID
+     - model:          t.nn.Module (is set to training mode)
+     - train_loader:   t.utils.data.DataLoader: training data
+     - val_loader:     t.utils.data.DataLoader: validation data
+     - loss_function:  function
+     - optimizer:      t.optim.Optimizer
+     - scheduler:      t.optim.lr_scheduler or None
+     - epochs:         Integer, number of epochs to train
+     - early_stopping: boolean, if True, store models for all epochs and select the one with the
+                       highest validation accuracy
+     - progress:       boolean, if True, show a progress bar (tqdm)
+     - plot:           boolean, if True, generate all plots and store on disk
+
+    Returns: (model, metrics)
+     - model:   t.nn.Module, trained model
+     - metrics: t.tensor, size=[1, 4], accuracy, precision, recall, f1
+
+    Notes:
+     - Model and data will not be moved to gpu, do this outside of this function.
+     - When early_stopping is enabled, this function will store all intermediate models
+    """
 
     # prepare result
     loss = t.zeros((2, epochs))
@@ -125,16 +159,25 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
     if progress:
         pbar = tqdm(total=epochs, desc=f"Subject {subject}, accuracy =    nan", ascii=True)
 
+    # prepare early_stopping
+    if early_stopping:
+        early_stopping = EarlyStopping()
+
     # train model for all epochs
     for epoch in range(epochs):
         # train the model
-        train_loss, train_accuracy = _train_epoch(model, train_loader, loss_function, optimizer)
+        train_loss, train_accuracy = _train_epoch(model, train_loader, loss_function, optimizer,
+                                                  scheduler=scheduler)
 
         # collect current loss and accuracy
         loss[0, epoch] = train_loss
-        loss[1, epoch] = _test_net(model, test_loader, loss_function, train=False)
+        loss[1, epoch] = _test_net(model, val_loader, loss_function, train=False)
         accuracy[0, epoch] = train_accuracy
-        accuracy[1, epoch] = _test_net(model, test_loader, train=False)
+        accuracy[1, epoch] = _test_net(model, val_loader, train=False)
+
+        # do early stopping
+        if early_stopping:
+            early_stopping.checkpoint(model, loss[1, epoch], accuracy[1, epoch], epoch)
 
         pbar.set_description(f"Subject {subject}, accuracy = {accuracy[1, epoch]:1.4f}",
                              refresh=False)
@@ -144,11 +187,16 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
     if progress:
         pbar.close()
 
+    # get the best model
+    if early_stopping:
+        model, best_loss, best_accuracy, best_epoch = early_stopping.use_best_model(model)
+        print(f"Early Stopping: using model at epoch {best_epoch+1} with accuracy {best_accuracy}")
+
     # generate plots
     if plot:
-        generate_plots(subject, model, test_loader, loss, accuracy)
+        generate_plots(subject, model, val_loader, loss, accuracy)
 
-    metrics = get_metrics_from_model(model, test_loader)
+    metrics = get_metrics_from_model(model, val_loader)
     return model, metrics
 
 
