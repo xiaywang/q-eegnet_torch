@@ -2,14 +2,15 @@
 Utility Functions to plot the results and store on disk
 """
 
-from os import path
-
-from sklearn.metrics import precision_recall_curve, average_precision_score
+import os
+import itertools
 
 import matplotlib.pyplot as plt
 import torch as t
+import numpy as np
+from sklearn.metrics import precision_recall_curve, average_precision_score, confusion_matrix
 
-from .misc import one_hot
+from .misc import one_hot, class_decision
 
 
 def generate_plots(subject, model, test_loader, loss, accuracy, target_dir=None):
@@ -20,15 +21,19 @@ def generate_plots(subject, model, test_loader, loss, accuracy, target_dir=None)
      - subject:     number between 1 and 9
      - model:       t.Module, trained model
      - test_loader: t.utils.data.DataLoader
-     - loss:        t.tensor, size = [epochs]
-     - accuracy:    t.tensor, size = [epochs]
+     - loss:        t.tensor, size = [2, epochs], 0: training, 1: testing
+     - accuracy:    t.tensor, size = [2, epochs], 0: training, 1: testing
      - target_dir:  string or os.path, if None, <current_file>/../results is used.
     """
 
-    # generate loss_accuracy plot
-    plot_loss_accuracy(subject, loss, accuracy, target_dir)
+    # make sure that the environment variables are set (to hide the unnecessary output)
+    if "XDG_RUNTIME_DIR" not in os.environ:
+        tmp_dir = "/tmp/runtime-eegnet"
+        os.environ["XDG_RUNTIME_DIR"] = tmp_dir
+        if not os.path.exists(tmp_dir):
+            os.makedirs(tmp_dir)
+            os.chmod(tmp_dir, 700)
 
-    # generate precision recall plot
     # necessary to compute the data first
     model.train(False)
     # TODO remove this line and combine all batches manually
@@ -38,7 +43,14 @@ def generate_plots(subject, model, test_loader, loss, accuracy, target_dir=None)
     y_hat = model(x).cpu().detach()
     y = y.cpu().detach()
 
+    # generate loss_accuracy plot
+    plot_loss_accuracy(subject, loss, accuracy, target_dir)
+
+    # generate precision recall plot
     plot_precision_recall_curve(subject, y, y_hat, target_dir=target_dir)
+
+    # generate confusion matrix
+    plot_confusion_matrix(subject, y, y_hat, target_dir=target_dir)
 
     # It is probably not necessary to move y back to cuda, because the data is no longer used.
     # But I will do it anyways.
@@ -51,8 +63,8 @@ def plot_loss_accuracy(subject, loss, accuracy, target_dir=None):
 
     Parameters:
      - subject:    number, 1 <= subject <= 9
-     - loss:       t.tensor, size = [epochs]
-     - accuracy:   t.tensor, size = [epochs]
+     - loss:       t.tensor, size = [2, epochs]
+     - accuracy:   t.tensor, size = [2, epochs]
      - target_dir: string or os.path, if None, <current_file>/../results is used.
     """
 
@@ -101,7 +113,7 @@ def plot_precision_recall_curve(subject, y, y_pred, n_classes=4, target_dir=None
     Parameters:
      - subject:    number of the subject, between 1 and 9
      - y:          t.tensor, size=[n_samples], the correct output
-     - y_pred:     t.tensor, size+[n_samples, n_classes], prediction output
+     - y_pred:     t.tensor, size=[n_samples, n_classes], prediction output
      - n_classes:  number of classes
      - target_dir: string or os.path, if None, <current_file>/../results is used.
 
@@ -144,6 +156,49 @@ def plot_precision_recall_curve(subject, y, y_pred, n_classes=4, target_dir=None
     return average_precision['micro']
 
 
+def plot_confusion_matrix(subject, y, y_pred, class_names=None, normalize=False, cmap=plt.cm.Blues,
+                          target_dir=None):
+    """
+    Generates a Confusion Matrix plot and stores it on disk
+    """
+    # prepare filename
+    filename = _get_filename(subject, "confusion", target_dir)
+
+    # prepare class names
+    if class_names is None:
+        class_names = ["Left hand", "Right hand", "Both feet", 'Tongue']
+
+    # generate confusion matrix
+    y_decision = class_decision(y_pred)
+    cm = confusion_matrix(y, y_decision)
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+
+    # Generate Plot
+    plt.figure()
+    fig, ax = plt.subplots()
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title("Confusion Matrix")
+    plt.colorbar()
+    tick_marks = np.arange(len(class_names))
+    plt.xticks(tick_marks, class_names, rotation=45)
+    plt.yticks(tick_marks, class_names)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    ax.set_ylim(len(cm) - 0.5, -0.5)
+    plt.savefig(filename, bbox_inches='tight')
+    plt.close('all')
+
+
 def _get_filename(subject, name, target_dir=None):
     """
     Returns the requested filename including the path
@@ -157,7 +212,7 @@ def _get_filename(subject, name, target_dir=None):
     """
 
     if target_dir is None:
-        target_dir = path.dirname(path.realpath(__file__))
-        target_dir = path.join(target_dir, '../results')
-        target_dir = path.realpath(target_dir)
-    return path.join(target_dir, f"s{subject}_{name}.png")
+        target_dir = os.path.dirname(os.path.realpath(__file__))
+        target_dir = os.path.join(target_dir, '../results')
+        target_dir = os.path.realpath(target_dir)
+    return os.path.join(target_dir, f"s{subject}_{name}.png")

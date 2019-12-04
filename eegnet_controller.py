@@ -66,7 +66,7 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
         # train all epochs and evaluate
         for epoch in epochs:
             # train the model
-            _train_epoch(model, train_loader, loss_function, optimizer)
+            _train_epoch(model, train_loader, loss_function, optimizer, l1_factor=0.005)
 
             # collect current loss and accuracy
             loss[0, epoch] = _test_net(model, train_loader, loss_function)
@@ -129,10 +129,10 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
         _train_epoch(model, train_loader, loss_function, optimizer)
 
         # collect current loss and accuracy
-        loss[0, epoch] = _test_net(model, train_loader, loss_function)
-        loss[1, epoch] = _test_net(model, test_loader, loss_function)
-        accuracy[0, epoch] = _test_net(model, train_loader)
-        accuracy[1, epoch] = _test_net(model, test_loader)
+        loss[0, epoch] = _test_net(model, train_loader, loss_function, train=True)
+        loss[1, epoch] = _test_net(model, test_loader, loss_function, train=False)
+        accuracy[0, epoch] = _test_net(model, train_loader, train=True)
+        accuracy[1, epoch] = _test_net(model, test_loader, train=False)
 
         pbar.set_description(f"Subject {subject}, accuracy = {accuracy[1, epoch]:1.4f}",
                              refresh=False)
@@ -166,9 +166,12 @@ def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
     model.train(True)
     running_loss = 0.0
     for x, y in loader:
+        # Forward step
         optimizer.zero_grad()
         output = model(x)
         loss = loss_function(output, y)
+
+        # Backpropagation
         loss.backward()
         optimizer.step()
         if scheduler:
@@ -177,7 +180,7 @@ def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
     return loss
 
 
-def _test_net(model, loader, loss_function=None):
+def _test_net(model, loader, loss_function=None, train=False):
     """
     Tests the model for accuracy
 
@@ -185,11 +188,12 @@ def _test_net(model, loader, loss_function=None):
      - model:         t.nn.Module (is set to testing mode)
      - loader:        t.utils.DataLoader
      - loss_function: function or None. If None, then accuracy is tested
+     - train:         boolean, if the model is to be set into training or testing mode
 
     Returns: accuracy: float
     """
     # set the model into testing mode
-    model.train(False)
+    model.train(train)
     with t.no_grad():
 
         result = 0.0

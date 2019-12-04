@@ -11,10 +11,10 @@ def one_hot(x, n_classes=None):
     Returns one_hot encoding of the input vector
 
     Parameters
-     - x:         t.tensor, size=[n], dtype=t.long, integer values between 0 and n_classes
+     - x:         t.tensor, size=[n], dtype=t.long, integer values range [0, n_classes)
      - n_classes: number or None. if None, this value is determined automatically
 
-    Returns: t.tensor, size_[n, n_classes], one_hot encoded
+    Returns: t.tensor, size=[n, n_classes], one_hot encoded
     """
 
     n = x.shape[0]
@@ -29,6 +29,19 @@ def one_hot(x, n_classes=None):
 
     y.scatter_(1, x.reshape(n, 1), 1)
     return y
+
+
+def class_decision(x):
+    """
+    Returns a vector containing the class with the highest value (probability)
+    Inverse of one_hot function
+
+    Parameters
+     - x: t.tensor, size=[n, n_classes], where each element represents the probability of the class.
+
+    Returns t.tensor, size=[n], dtype=long, integer values in range [0, n_classes)
+    """
+    return x.argmax(axis=1)
 
 
 class TestOneHot(unittest.TestCase):
