@@ -1,5 +1,7 @@
 import torch as t
 import torch.nn.functional as F
+import traceback
+import sys
 
 
 class EEGNet(t.nn.Module):
@@ -57,6 +59,7 @@ class EEGNet(t.nn.Module):
         self.apply(init_weight)
 
     def forward(self, x):
+
         # reshape vector from (s, C, T) to (s, 1, C, T)
         x = x.reshape(x.shape[0], 1, x.shape[1], x.shape[2])
 

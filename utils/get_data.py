@@ -85,7 +85,7 @@ def as_tensor(samples, labels):
     """
 
     x = t.tensor(samples).to(dtype=t.float)
-    y = t.tensor(labels).to(dtype=t.long) - 1 # labels are from 1 to 4, but torch expects 0 to 3
+    y = t.tensor(labels).to(dtype=t.long) - 1  # labels are from 1 to 4, but torch expects 0 to 3
 
     # move data to cuda if device is available
     if t.cuda.is_available():

@@ -1,3 +1,4 @@
+import numpy as np
 import torch as t
 
 from tqdm import tqdm
@@ -12,22 +13,29 @@ from utils.early_stopping import EarlyStopping
 
 
 def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr=0.001,
-                              progress=True, plot=True):
+                              early_stopping=True, progress=True, plot=True):
     """
     Trains a subject specific model for the given subject, using K-Fold Cross Validation
 
     Parameters:
-     - subject: Integer in the Range 1 <= subject <= 9
-     - n_splits: Number of splits for K-Fold CV
-     - epochs: Number of epochs to train
-     - batch_size: Batch Size
-     - lr: Learning Rate
-     - progress: bool, if True, displays a progress bar
-     - plot: bool, if True, generates plots
+     - subject:        Integer in the Range 1 <= subject <= 9
+     - n_splits:       Number of splits for K-Fold CV
+     - epochs:         Number of epochs to train
+     - batch_size:     Batch Size
+     - lr:             Learning Rate
+     - early_stopping: bool, approximate the number of epochs to train the network for the subject.
+     - progress:       bool, if True, displays a progress bar
+     - plot:           bool, if True, generates plots
 
-    Returns: (models, metrics)
+    Returns: (models, metrics, epoch)
      - models:  List of t.nn.Module, size = [n_splits]
-     - metrics: t.tensor, size=[1, 4], accuracy, precision, recall, f1
+     - metrics: t.tensor, size=[1, 4], accuracy, precision, recall, f1, averaged over all splits
+     - epoch:   integer, number of epochs determined by early_stopping. If early_stopping is not
+                used, then this value will always be equal to the parameter epochs
+
+    Notes:
+     - Early Stopping: Uses early stopping to determine the best epoch to stop training for the
+       given subject by averaging over the stopping epoch of all splits.
     """
 
     # load the raw data
@@ -35,57 +43,52 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
     samples, labels = as_tensor(samples, labels)
 
     # prepare the models
-    models = [EEGNet(T=len(labels)) for _ in range(n_splits)]
+    models = [EEGNet(T=samples.shape[2]) for _ in range(n_splits)]
+    metrics = t.zeros((n_splits, 4))
+    best_epoch = np.zeros(n_splits)
 
     # prepare KFold
     kfcv = KFoldCV(n_splits)
     split = 0
 
-    # prepare result
-    loss = t.zeros((epochs, ))
-    accuracy = t.zeros((epochs, ))
+    # open the progress bar
+    with tqdm(desc=f"Subject {subject} CV, split 1", total=n_splits * epochs, leave=False,
+              unit='epoch', ascii=True) as pbar:
+        # loop over all splits
+        for split, indices in enumerate(kfcv.split(samples, labels)):
+            # set the progress bar title
+            pbar.set_description(f"Subject {subject} CV, split {split + 1}")
 
-    # prepare progress bar
-    if progress:
-        pbar = tqdm(total=n_splits * epochs, desc=f"Subject {subject}", ascii=True)
+            # generate dataset
+            train_idx, val_idx = indices
+            train_ds = t.utils.data.TensorDataset(samples[train_idx], labels[train_idx])
+            val_ds = t.utils.data.TensorDataset(samples[val_idx], labels[val_idx])
+            train_loader = t.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+            val_loader = t.utils.data.DataLoader(val_ds, batch_size=len(val_idx), shuffle=True)
 
-    for split, indices in enumerate(kfcv.split(samples, labels)):
-        # generate dataset
-        train_idx, val_idx = indices
-        train_ds = t.utils.data.TensorDataset(samples[train_idx], labels[train_idx])
-        val_ds = t.utils.data.TensorDataset(samples[val_idx], labels[val_idx])
-        train_loader = t.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-        val_loader = t.utils.data.DataLoader(val_ds, batch_size=len(val_idx), shuffle=True)
+            # prepare the model
+            model = models[split]
+            if t.cuda.is_available():
+                model = model.cuda()
 
-        # prepare the model
-        model = models[split]
-        if t.cuda.is_available():
-            model = model.cuda()
+            # prepare loss function and optimizer
+            loss_function = t.nn.CrossEntropyLoss()
+            optimizer = t.optim.Adam(model.parameters(), lr=lr)
 
-        # prepare loss function and optimizer
-        loss_function = t.nn.CrossEntropyLoss()
-        optimizer = t.optim.Adam(model.parameters(), lr=lr)
+            model, split_metrics, split_epoch = _train_net(subject, model, train_loader, val_loader,
+                                                           loss_function, optimizer, epochs=epochs,
+                                                           early_stopping=early_stopping, plot=plot,
+                                                           pbar=pbar)
 
-        # train all epochs and evaluate
-        for epoch in epochs:
-            # train the model
-            _train_epoch(model, train_loader, loss_function, optimizer)
+            metrics[split, :] = split_metrics[0, :]
+            best_epoch[split] = split_epoch
 
-            # collect current loss and accuracy
-            loss[0, epoch] = _test_net(model, train_loader, loss_function)
-            loss[1, epoch] = _test_net(model, val_loader, loss_function)
-            accuracy[0, epoch] = _test_net(model, train_loader)
-            accuracy[1, epoch] = _test_net(model, val_loader)
+    # average all metrics
+    metrics = metrics.mean(axis=0).reshape(1, 4)
 
-            if progress:
-                pbar.update()
-
-    # close the progress bar
-    if progress:
-        pbar.close()
-
-    metrics = get_metrics_from_model(model, val_loader)
-    return models, metrics
+    # print the result
+    print(f"Subject {subject} CV: accuracy = {metrics[0, 0]}, at epoch {best_epoch.mean()} +- {best_epoch.std()}")
+    return models, metrics, int(best_epoch.mean().round())
 
 
 def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progress=True, plot=True):
@@ -117,14 +120,22 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
     loss_function = t.nn.CrossEntropyLoss()
     optimizer = t.optim.Adam(model.parameters(), lr=lr)
 
-    # Early stopping is not allowed in this mode, because the testing data cannot be used for
-    # training!
-    return _train_net(subject, model, train_loader, test_loader, loss_function, optimizer,
-                      epochs=epochs, early_stopping=False, progress=progress, plot=plot)
+    # prepare progress bar
+    with tqdm(desc=f"Subject {subject}", total=epochs, leave=False, disable=not progress,
+              unit='epoch', ascii=True) as pbar:
+
+        # Early stopping is not allowed in this mode, because the testing data cannot be used for
+        # training!
+        model, metrics, _ = _train_net(subject, model, train_loader, test_loader, loss_function,
+                                       optimizer, epochs=epochs, early_stopping=False, plot=plot,
+                                       pbar=pbar)
+
+    print(f"Subject {subject}: accuracy = {metrics[0, 0]}")
+    return model, metrics
 
 
 def _train_net(subject, model, train_loader, val_loader, loss_function, optimizer, scheduler=None,
-               epochs=500, early_stopping=True, progress=True, plot=True):
+               epochs=500, early_stopping=True, plot=True, pbar=None):
     """
     Main training loop
 
@@ -139,12 +150,14 @@ def _train_net(subject, model, train_loader, val_loader, loss_function, optimize
      - epochs:         Integer, number of epochs to train
      - early_stopping: boolean, if True, store models for all epochs and select the one with the
                        highest validation accuracy
-     - progress:       boolean, if True, show a progress bar (tqdm)
      - plot:           boolean, if True, generate all plots and store on disk
+     - pbar:           tqdm progress bar or None, in which case no progress will be displayed
+                       (not closed afterwards)
 
-    Returns: (model, metrics)
+    Returns: (model, metrics, epoch)
      - model:   t.nn.Module, trained model
      - metrics: t.tensor, size=[1, 4], accuracy, precision, recall, f1
+     - epoch:   integer, always equal to 500 if early stopping is not used
 
     Notes:
      - Model and data will not be moved to gpu, do this outside of this function.
@@ -154,10 +167,6 @@ def _train_net(subject, model, train_loader, val_loader, loss_function, optimize
     # prepare result
     loss = t.zeros((2, epochs))
     accuracy = t.zeros((2, epochs))
-
-    # prepare progress bar
-    if progress:
-        pbar = tqdm(total=epochs, desc=f"Subject {subject}, accuracy =    nan", ascii=True)
 
     # prepare early_stopping
     if early_stopping:
@@ -170,34 +179,33 @@ def _train_net(subject, model, train_loader, val_loader, loss_function, optimize
                                                   scheduler=scheduler)
 
         # collect current loss and accuracy
+        validation_loss, validation_accuracy = _test_net(model, val_loader, loss_function,
+                                                         train=False)
         loss[0, epoch] = train_loss
-        loss[1, epoch] = _test_net(model, val_loader, loss_function, train=False)
+        loss[1, epoch] = validation_loss
         accuracy[0, epoch] = train_accuracy
-        accuracy[1, epoch] = _test_net(model, val_loader, train=False)
+        accuracy[1, epoch] = validation_accuracy
 
         # do early stopping
         if early_stopping:
             early_stopping.checkpoint(model, loss[1, epoch], accuracy[1, epoch], epoch)
 
-        pbar.set_description(f"Subject {subject}, accuracy = {accuracy[1, epoch]:1.4f}",
-                             refresh=False)
-        pbar.update()
-
-    # close the progress bar
-    if progress:
-        pbar.close()
+        if pbar is not None:
+            pbar.update()
 
     # get the best model
     if early_stopping:
         model, best_loss, best_accuracy, best_epoch = early_stopping.use_best_model(model)
-        print(f"Early Stopping: using model at epoch {best_epoch+1} with accuracy {best_accuracy}")
+    else:
+        best_epoch = epoch
 
     # generate plots
     if plot:
         generate_plots(subject, model, val_loader, loss, accuracy)
 
     metrics = get_metrics_from_model(model, val_loader)
-    return model, metrics
+
+    return model, metrics, best_epoch + 1
 
 
 def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
@@ -241,23 +249,24 @@ def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
     return running_loss, accuracy
 
 
-def _test_net(model, loader, loss_function=None, train=False):
+def _test_net(model, loader, loss_function, train=False):
     """
     Tests the model for accuracy
 
     Parameters:
      - model:         t.nn.Module (is set to testing mode)
      - loader:        t.utils.DataLoader
-     - loss_function: function or None. If None, then accuracy is tested
+     - loss_function: function or None.
      - train:         boolean, if the model is to be set into training or testing mode
 
-    Returns: accuracy: float
+    Returns: loss: float, accuracy: float
     """
     # set the model into testing mode
     model.train(train)
     with t.no_grad():
 
-        result = 0.0
+        running_loss = 0.0
+        running_acc = 0.0
         n_total = 0
 
         # get the data from the loader (only one batch will be available)
@@ -266,18 +275,17 @@ def _test_net(model, loader, loss_function=None, train=False):
             # compute the output
             output = model(x)
 
-            if loss_function is None:
-                # compare the prediction
-                yhat = output.argmax(dim=1)
-                prediction_correct = yhat == y
-                num_correct = prediction_correct.sum().item()
-                n_total += x.shape[0]
-                result += num_correct
+            # compute accuracy
+            yhat = class_decision(output)
+            prediction_correct = yhat == y
+            num_correct = prediction_correct.sum().item()
+            running_acc += num_correct
 
-            else:
-                # compute the loss function
-                loss = loss_function(output, y)
-                result += loss
-                n_total += 1
+            # compute the loss function
+            loss = loss_function(output, y)
+            running_loss += loss * x.shape[0]
 
-    return result / n_total
+            # increment sample counter
+            n_total += x.shape[0]
+
+    return running_loss / n_total, running_acc / n_total
