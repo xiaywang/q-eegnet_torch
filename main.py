@@ -12,8 +12,8 @@ from utils.metrics import metrics_to_csv
 DO_CV = False
 N_EPOCHS = 500
 
-BENCHMARK = False
-N_TRIALS = 20
+BENCHMARK = True
+N_TRIALS = 15
 
 
 def run(do_cv=False, epochs=500, export=True, silent=False):
@@ -47,15 +47,20 @@ def main():
         # generate the average over the first dimension
         # avg_metrics is of size 9, 4, with all 4 scores for all 9 subjects averaged over all trials
         avg_metrics = metrics.mean(axis=0)
-        var_metrics = metrics.var(axis=0)
+        std_metrics = metrics.std(axis=0)
+
+        # for the overall score, first average along all subjects, and then use this value to
+        # compute mean and standard deviation
+        overall_avg_acc = metrics[:, :, 0].mean(axis=1).mean()
+        overall_std_acc = metrics[:, :, 0].mean(axis=1).std()
 
         # store the results
-        metrics_to_csv(avg_metrics, "benchmark_mean_metrics.csv")
-        metrics_to_csv(var_metrics, "benchmark_var_metrics.csv")
+        metrics_to_csv(avg_metrics, filename="benchmark_mean_metrics.csv")
+        metrics_to_csv(std_metrics, filename="benchmark_std_metrics.csv")
 
-        print(f"Total Average Accuracy: {avg_metrics[:, 0].mean()}\n")
+        print(f"Total Average Accuracy: {overall_avg_acc:.4f} +- {overall_std_acc:.4f}\n")
         for i in range(0, 9):
-            print(f"subject {i+1}: accuracy = {avg_metrics[i, 0]} +- {var_metrics[i, 0]}")
+            print(f"subject {i+1}: accuracy = {avg_metrics[i, 0]:.4f} +- {std_metrics[i, 0]:.4f}")
 
     else:
         # normal procedure

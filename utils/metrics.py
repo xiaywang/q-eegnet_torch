@@ -95,7 +95,7 @@ def _get_filename(name, target_dir=None):
         target_dir = os.path.join(target_dir, '../results')
         target_dir = os.path.realpath(target_dir)
 
-    if not name.endswith(".csv") or not name.endswith(".CSV"):
+    if not name.endswith("csv"):
         name += ".csv"
 
     return os.path.join(target_dir, name)

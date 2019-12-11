@@ -1,0 +1,8 @@
+* Results Comparison
+| Backend | Options                                   | Accuracy |  std | # Trials |
+|---------+-------------------------------------------+----------+------+----------|
+| Keras   | -                                         |    71.0% | 3.4% |       20 |
+| Torch   | -                                         |    69.5% | 4.2% |       20 |
+| Torch   | ReLU                                      |    69.7% | 3.9% |       20 |
+| Torch   | ReLU, No Constraints                      |          |      |          |
+| Torch   | ReLU, No Constraints, BachNorm in SepConv |          |      |          |
