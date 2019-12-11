@@ -37,7 +37,7 @@ class EEGNet(t.nn.Module):
         self.conv1 = t.nn.Conv2d(1, F1, (1, 64), bias=False)
         self.batch_norm1 = t.nn.BatchNorm2d(F1)
         # By setting groups=F1 (input dimension), we get a depthwise convolution
-        self.conv2 = ConstrainedConv2d(F1, D * F1, (C, 1), groups=F1, bias=False, max_weight=1.0)
+        self.conv2 = t.nn.Conv2d(F1, D * F1, (C, 1), groups=F1, bias=False)
         self.batch_norm2 = t.nn.BatchNorm2d(D * F1)
         self.activation1 = t.nn.ELU() if activation == 'elu' else t.nn.ReLU()
         self.dropout1 = t.nn.Dropout(p=p_dropout)
@@ -53,7 +53,7 @@ class EEGNet(t.nn.Module):
         self.dropout2 = t.nn.Dropout(p=p_dropout)
 
         # Fully connected layer (classifier)
-        self.fc = ConstrainedLinear(F2 * n_features, N, bias=True, max_weight=reg_rate)
+        self.fc = t.nn.Linear(F2 * n_features, N, bias=True)
 
         # initialize all weights with xavier_normal, except the bias, which must be initialized
         # with 0. This is the same as the default initialization for keras
