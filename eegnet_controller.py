@@ -123,6 +123,7 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
     # prepare loss function and optimizer
     loss_function = t.nn.CrossEntropyLoss()
     optimizer = t.optim.Adam(model.parameters(), lr=lr)
+    scheduler = t.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
 
     # prepare progress bar
     with tqdm(desc=f"Subject {subject}", total=epochs, leave=False, disable=silent,
@@ -131,8 +132,8 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
         # Early stopping is not allowed in this mode, because the testing data cannot be used for
         # training!
         model, metrics, _ = _train_net(subject, model, train_loader, test_loader, loss_function,
-                                       optimizer, epochs=epochs, early_stopping=False, plot=plot,
-                                       pbar=pbar)
+                                       optimizer, scheduler=scheduler, epochs=epochs,
+                                       early_stopping=False, plot=plot, pbar=pbar)
 
     if not silent:
         print(f"Subject {subject}: accuracy = {metrics[0, 0]}")

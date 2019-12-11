@@ -17,6 +17,9 @@ N_TRIALS = 15
 
 
 def run(do_cv=False, epochs=500, export=True, silent=False):
+    """
+    Does one complete run over all data
+    """
     metrics = t.zeros((9, 4))
     for subject in range(1, 10):
         if do_cv:
@@ -37,6 +40,9 @@ def run(do_cv=False, epochs=500, export=True, silent=False):
 
 
 def main():
+    """
+    Main function used for testing
+    """
     if BENCHMARK:
         print("Benchmarking...")
 
@@ -49,10 +55,10 @@ def main():
         avg_metrics = metrics.mean(axis=0)
         std_metrics = metrics.std(axis=0)
 
-        # for the overall score, first average along all subjects, and then use this value to
-        # compute mean and standard deviation
-        overall_avg_acc = metrics[:, :, 0].mean(axis=1).mean()
-        overall_std_acc = metrics[:, :, 0].mean(axis=1).std()
+        # For the overall score, first average along all subjects.
+        # For standard deviation, average all standard deviations of all subjects
+        overall_avg_acc = avg_metrics[:, 0].mean()
+        overall_std_acc = std_metrics[:, 0].mean()
 
         # store the results
         metrics_to_csv(avg_metrics, filename="benchmark_mean_metrics.csv")
