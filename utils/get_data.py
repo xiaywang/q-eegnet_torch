@@ -8,6 +8,8 @@ import numpy as np
 import scipy.io as sio
 import torch as t
 
+from .filters import bandpass
+
 __author__ = "Michael Hersche and Tino Rellstab, modified by Tibor Schneider"
 __email__ = "herschmi@ethz.ch, tinor@ethz.ch, sctibor@ethz.ch"
 
@@ -15,7 +17,7 @@ __email__ = "herschmi@ethz.ch, tinor@ethz.ch, sctibor@ethz.ch"
 DATA_PATH = "/scratch/sem19h24/BCI_IV_2a/mat"
 
 
-def get_data(subject, training, data_path=None):
+def get_data(subject, training, data_path=None, do_filter=False):
     """
     Loads the dataset 2a of the BCI Competition IV
     available on http://bnci-horizon-2020.eu/database/data-sets
@@ -25,6 +27,7 @@ def get_data(subject, training, data_path=None):
      - training:  if True, load training data
                   if False, load testing data
      - data_path: String, path to the BCI IV 2a dataset (.mat files)
+     - do_filter: bool, apply highpass filter at fc= 4Hz if true
 
     Returns: data_return,  numpy matrix, size = NO_valid_trial x 22 x 1750
              class_return, numpy matrix,	size = NO_valid_trial
@@ -53,11 +56,17 @@ def get_data(subject, training, data_path=None):
         a_X = a_data3[0]
         a_trial = a_data3[1]
         a_y = a_data3[2]
-        # a_fs = a_data3[3]
+        a_fs = a_data3[3]
         # a_classes = a_data3[4]
         a_artifacts = a_data3[5]
         # a_gender = a_data3[6]
         # a_age = a_data3[7]
+
+        # apply filter
+        if do_filter:
+            for ch in range(a_X.shape[1]):
+                a_X[:, ch] = bandpass(a_X[:, ch], a_fs, 4, 40)
+
         for trial in range(0, a_trial.size):
             if a_artifacts[trial] == 0:
                 range_a = int(a_trial[trial])

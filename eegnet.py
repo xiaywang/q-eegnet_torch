@@ -1,29 +1,33 @@
 import torch as t
 import torch.nn.functional as F
-import traceback
-import sys
 
 
 class EEGNet(t.nn.Module):
     """
     EEGNet
     """
-    def __init__(self, F1=8, D=2, F2=None, C=22, T=1125, N=4, p_dropout=0.5, reg_rate=0.25):
+    def __init__(self, F1=8, D=2, F2=None, C=22, T=1125, N=4, p_dropout=0.5, reg_rate=0.25,
+                 activation='elu'):
         """
-        F1: Number of spectral filters
-        D: Number of spacial filters (per spectral filter), F2 = F1 * D
-        F2: Number or None. If None, then F2 = F1 * D
-        C: Number of EEG channels
-        T: Number of time samples
-        N: Number of classes
-        p_dropout: Dropout Probability
-        reg_rate: Regularization (L1) of the final linear layer (fc)
+        F1:         Number of spectral filters
+        D:          Number of spacial filters (per spectral filter), F2 = F1 * D
+        F2:         Number or None. If None, then F2 = F1 * D
+        C:          Number of EEG channels
+        T:          Number of time samples
+        N:          Number of classes
+        p_dropout:  Dropout Probability
+        reg_rate:   Regularization (L1) of the final linear layer (fc)
+        activation: string, either 'elu' or 'relu'
         """
         super(EEGNet, self).__init__()
 
         # prepare network constants
         if F2 is None:
             F2 = F1 * D
+
+        # check the activation input
+        activation = activation.lower()
+        assert activation in ['elu', 'relu']
 
         # Number of input neurons to the final fully connected layer
         n_features = (T // 8) // 8
@@ -35,6 +39,7 @@ class EEGNet(t.nn.Module):
         # By setting groups=F1 (input dimension), we get a depthwise convolution
         self.conv2 = ConstrainedConv2d(F1, D * F1, (C, 1), groups=F1, bias=False, max_weight=1.0)
         self.batch_norm2 = t.nn.BatchNorm2d(D * F1)
+        self.activation1 = t.nn.ELU() if activation == 'elu' else t.nn.ReLU()
         self.dropout1 = t.nn.Dropout(p=p_dropout)
 
         # Block 2
@@ -44,6 +49,7 @@ class EEGNet(t.nn.Module):
         self.sep_conv1 = t.nn.Conv2d(D * F1, D * F1, (1, 16), groups=D * F1, bias=False)
         self.sep_conv2 = t.nn.Conv2d(D * F1, F2, (1, 1), bias=False)
         self.batch_norm3 = t.nn.BatchNorm2d(F2)
+        self.activation2 = t.nn.ELU() if activation == 'elu' else t.nn.ReLU()
         self.dropout2 = t.nn.Dropout(p=p_dropout)
 
         # Fully connected layer (classifier)
@@ -71,7 +77,7 @@ class EEGNet(t.nn.Module):
         x = self.batch_norm1(x)
         x = self.conv2(x)            # output dim: (s, D * F1, 1, T-1)
         x = self.batch_norm2(x)
-        x = F.elu(x)
+        x = self.activation1(x)
         x = F.avg_pool2d(x, (1, 8))  # output dim: (s, D * F1, 1, T // 8)
         x = self.dropout1(x)
 
@@ -80,7 +86,7 @@ class EEGNet(t.nn.Module):
         x = self.sep_conv1(x)        # output dim: (s, D * F1, 1, T // 8 - 1)
         x = self.sep_conv2(x)        # output dim: (s, F2, 1, T // 8 - 1)
         x = self.batch_norm3(x)
-        x = F.elu(x)
+        x = self.activation2(x)
         x = F.avg_pool2d(x, (1, 8))  # output dim: (s, F2, 1, T // 64)
         x = self.dropout2(x)
 

@@ -61,7 +61,7 @@ def get_metrics(y, y_pred):
     return metrics
 
 
-def metrics_to_csv(metrics, header=True, target_dir=None):
+def metrics_to_csv(metrics, header=True, target_dir=None, filename='metrics.csv'):
     """
     Stores metrics as csv file
 
@@ -69,8 +69,9 @@ def metrics_to_csv(metrics, header=True, target_dir=None):
      - metrics:    t.tensor, size=[n_subjects, 4]
      - header:     boolean, if True, add a heading row to the csv file
      - target_dir: path to the folder to store. If None, use the results folder in the project root.
+     - filename:   name of the file to be stored
     """
-    filename = _get_filename("metrics.csv", target_dir)
+    filename = _get_filename(filename, target_dir)
     header_row = ''
     if header:
         header_row = 'accuracy,precision,recall,f1'

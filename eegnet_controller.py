@@ -13,7 +13,7 @@ from utils.early_stopping import EarlyStopping
 
 
 def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr=0.001,
-                              early_stopping=True, progress=True, plot=True):
+                              early_stopping=True, silent=False, plot=True):
     """
     Trains a subject specific model for the given subject, using K-Fold Cross Validation
 
@@ -24,7 +24,7 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
      - batch_size:     Batch Size
      - lr:             Learning Rate
      - early_stopping: bool, approximate the number of epochs to train the network for the subject.
-     - progress:       bool, if True, displays a progress bar
+     - silent:         bool, if True, generate no output, including progress bar
      - plot:           bool, if True, generates plots
 
     Returns: (models, metrics, epoch)
@@ -53,7 +53,7 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
 
     # open the progress bar
     with tqdm(desc=f"Subject {subject} CV, split 1", total=n_splits * epochs, leave=False,
-              unit='epoch', ascii=True) as pbar:
+              unit='epoch', ascii=True, disable=silent) as pbar:
         # loop over all splits
         for split, indices in enumerate(kfcv.split(samples, labels)):
             # set the progress bar title
@@ -87,19 +87,23 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
     metrics = metrics.mean(axis=0).reshape(1, 4)
 
     # print the result
-    print(f"Subject {subject} CV: accuracy = {metrics[0, 0]}, at epoch {best_epoch.mean()} +- {best_epoch.std()}")
+    if not silent:
+        print(f"Subje`ct {subject} CV: accuracy = {metrics[0, 0]}, at epoch {best_epoch.mean()} " +
+              f"+- {best_epoch.std()}")
     return models, metrics, int(best_epoch.mean().round())
 
 
-def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progress=True, plot=True):
+def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=False, plot=True):
     """
     Trains a subject specific model for the given subject
 
     Parameters:
-     - subject: Integer in the Range 1 <= subject <= 9
-     - epochs: Number of epochs to train
+     - subject:    Integer in the Range 1 <= subject <= 9
+     - epochs:     Number of epochs to train
      - batch_size: Batch Size
-     - lr: Learning Rate
+     - lr:         Learning Rate
+     - silent:     bool, if True, hide all output including the progress bar
+     - plot:       bool, if True, generate plots
 
     Returns: (model, metrics)
      - model:   t.nn.Module, trained model
@@ -121,7 +125,7 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
     optimizer = t.optim.Adam(model.parameters(), lr=lr)
 
     # prepare progress bar
-    with tqdm(desc=f"Subject {subject}", total=epochs, leave=False, disable=not progress,
+    with tqdm(desc=f"Subject {subject}", total=epochs, leave=False, disable=silent,
               unit='epoch', ascii=True) as pbar:
 
         # Early stopping is not allowed in this mode, because the testing data cannot be used for
@@ -130,7 +134,8 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, progres
                                        optimizer, epochs=epochs, early_stopping=False, plot=plot,
                                        pbar=pbar)
 
-    print(f"Subject {subject}: accuracy = {metrics[0, 0]}")
+    if not silent:
+        print(f"Subject {subject}: accuracy = {metrics[0, 0]}")
     return model, metrics
 
 
