@@ -1,0 +1,34 @@
+* Meeting 23.10.2019
+** Compare two papers:
+- /EEGNet: a compact convolusional neural network for EEG-based brain-computer interfaces (Lawhern)/
+- /Fast and Accurate Multiclass INference for MI-BCIs Using Large Multiscale Temporal and Spectral Features (Hersche)/
+- /Deep Learning with Convolutional Neural Networks for EEG Decoding and Visualization (Schirremeister)/
+** Goals:
+*** Compare the two architectures
+*** How much can we reduce precision while still keeping the high acurracy
+*** Extend PULP API
+** Steps
+*** Implement EEGNet with PyTorch (already implemented with on a different backend)
+*** Quantize / Reduce precision
+*** Implement on Mr. Wolf (first in simulated environment)
+*** Implement Hersche-BCI with PyTorch
+*** Quantize / Reduce precision
+*** Implement on Mr. Wolf (first in simulated environment)
+*** Compare EEGNet and Hersche-BCI
+** Expertise
+*** Xiaying: Mr. Wolf
+*** Michael: Hersche-BCI
+*** Lukas: Quantization
+** Infrastructure
+*** Machine to work with
+*** Virtual Machine with PULP development environment
+** Notes:
+*** Mr.Wolf:
+**** Has a compute cluster of 8 cores (with only fixed point units)
+**** Only two FPUs
+*** Quantization:
+**** Only partial quantization
+*** APIs:
+**** PULP-DSP: Library with basic convolutions (1 and 2d)
+**** PULP-NN: Library with neural net implementation (optimized for 2d)
+**** Must probably be extended for 1D

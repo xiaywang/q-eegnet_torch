@@ -1,0 +1,82 @@
+* Meeting 11.12.2019
+** Preparation
+*** Start implementing EEGNet in PyTorch
+Implementation including crossvalidation complete
+*** Make Project Plan
+*** Think about artificially creating more samples by moving them in time
+** Progress
+*** EEGnet
+**** Implementation complete (Subject Specific only). Details:
+***** Same network as described in paper and as Keras implementation
+Using Conv2d with different options to replicate the keras ~DepthwiseConv2d~ and ~SeparableConv2d~
+Zero padding layer to replicate Keras option ~mode='same'~
+***** Same parameter initialization as Keras (Glorot Xavier)
+***** Same Optimizer (~Adam~), Batch Size (*32*, in paper, they used *16*), and learning rate (*0.001*)
+**** Accuracy: *0.697 +- 0.042,* Keras implementation has *0.710 +- 0.034* (without CV)
+comparable to results presented in paper, but worse than Keras implementation
+**** Problems / Notes: 
+***** Worse performance than Keras implementation
+***** Loss-accuracy plots look differently compared to Michaels Keras Implementation. 
+Large variance, re-running the Keras tool always generates different plots.
+Overall trend looks similar (only after rerunning several times)
+***** Twice as fast as keras (8m for PyTorch, 15m for Keras, same hardware), probably because keras uses float64 where I am using float32
+**** Cross Validation
+***** Different implementation than described in paper
+****** How they describe it in the paper:
+/For within-subject, we use *4-fold* blockwise crossvalidation, where two of the four blocks are chosen to be the training set, one block as the validation set and the final block as testing./
+[EEGnet, page 7, left column, bottom]
+****** How it is implemented in code:
+#+BEGIN_SRC python
+X_train = X[0:144, :]
+Y_train = Y[0:144]
+X_validate = X[144:216, :]
+Y_validate = Y[144:216]
+X_test = X[216:, :]
+Y_test = Y[216:]
+#+END_SRC
+***** My Implementation: Regular 4-fold cross validation (currently *no* guarantee for *balanced* splits)
+***** Early stopping:
+I use the cross validation to approximate the optimal epoch to stop training.
+****** Per subject, average the epoch where the *loss* on the *validation data* is lowest.
+****** Use this estimate as number of epochs to train for this subject.
+****** Very large variance for this estimate for some subjects.
+** Next Steps
+*** Quanitze EEGnet with PyTorch:
+Which type of quantization should be used? PyTorch describes three different types
+[[https://pytorch.org/docs/stable/quantization.html#quantization-workflows][Pytorch Quantization - Workflows]]
+**** Post-Training Dynamic Quantization: Probably not, requires dynamic quantization
+**** Post-Training Static Quantization: Just try it first?
+**** Quantization-Aware Training: If post-training static quantization does not work? (it's a minor change)
+** Questions:
+*** Is ~float32~ ok for comparing the accuracy (I had no time yet to compare them)?
+*** Different quantization for activation (output of each layer) and parameters? Signed for weights and unsigned for activation?
+*** Limited possibilities for ~torch.nn.intrinsic~
+**** ~torch.nn.intrinsic~ does not contain fused ~Conv2d~ with ~ELU~, just ~ReLU~. Is it ok to use ~ReLU~? No performance impact!
+**** ~torch.nn.intrinsic~ only allows regular ~Conv2d~, not my custom ~ConstrainedConv2d~.
+Idea: Just set the weights to ~self.conv.weight = self.conv.weight.clamp()~.
+Performance is way worse than before...
+**** Separable convolution is implemented as two separate convolutions. ~torch.nn.intrinsic~ cannot fuse them. Will this result in a larger range?
+Idea: Add batch normalization or ReLU (or both) in between and fuse them?
+**** ~torch.quantization~ only supports *qint8*, why not *qint16*?
+*** For Implementation on Mr. Wolf: Do the libraries already support quantization?
+** Stuff discussed in the meeting
+*** Bandpass Filter
+*** Use Learning Rate Scheduler: ~ReducedLRPlateau~
+*** Remove constraints and check if same accuracy is achieved
+*** Alternatively, add l1 or l2 regularization into loss function
+*** Different Ideas for Early Stopping
+**** Stop on reaching the test-loss during CV:
+During CV, compute average *training loss* achieved after all 500 epochs
+Then, when training on entire training set, stop once this training loss was reached
+**** Instead of stopping at the same epoch, stop after showing the network the same number of samples
+*** For Quantizing:
+**** Try with 8bit quantization
+**** Remove hard constraints
+**** Use ReLU
+**** Insert Batch Normalization between the separable convolution
+*** Organizational Stuff
+**** Upload to GitLab
+**** Store Org files in repository
+**** Generate table where all results with different options are noted
+**** This week, try to achieve same accuracy as Keras implementation
+**** Next Meeting: 19.12.2019, 09:00
