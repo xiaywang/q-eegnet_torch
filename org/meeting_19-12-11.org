@@ -62,6 +62,7 @@ Idea: Add batch normalization or ReLU (or both) in between and fuse them?
 ** Stuff discussed in the meeting
 *** Bandpass Filter
 *** Use Learning Rate Scheduler: ~ReducedLRPlateau~
+**** Also, try optimizer ~SDG~, might work better with scheduler
 *** Remove constraints and check if same accuracy is achieved
 *** Alternatively, add l1 or l2 regularization into loss function
 *** Different Ideas for Early Stopping
