@@ -35,10 +35,11 @@ class EEGNet(t.nn.Module):
         # Block 1
         self.conv1_pad = t.nn.ZeroPad2d((32, 31, 0, 0))
         self.conv1 = t.nn.Conv2d(1, F1, (1, 64), bias=False)
-        self.batch_norm1 = t.nn.BatchNorm2d(F1)
+        self.batch_norm1 = t.nn.BatchNorm2d(F1, momentum=0.01)
         # By setting groups=F1 (input dimension), we get a depthwise convolution
-        self.conv2 = t.nn.Conv2d(F1, D * F1, (C, 1), groups=F1, bias=False)
-        self.batch_norm2 = t.nn.BatchNorm2d(D * F1)
+        # self.conv2 = t.nn.Conv2d(F1, D * F1, (C, 1), groups=F1, bias=False)
+        self.conv2 = ConstrainedConv2d(F1, D * F1, (C, 1), groups=F1, bias=False, max_weight=1.0)
+        self.batch_norm2 = t.nn.BatchNorm2d(D * F1, momentum=0.01)
         self.activation1 = t.nn.ELU() if activation == 'elu' else t.nn.ReLU()
         self.dropout1 = t.nn.Dropout(p=p_dropout)
 
@@ -48,20 +49,21 @@ class EEGNet(t.nn.Module):
         self.sep_conv_pad = t.nn.ZeroPad2d((8, 7, 0, 0))
         self.sep_conv1 = t.nn.Conv2d(D * F1, D * F1, (1, 16), groups=D * F1, bias=False)
         self.sep_conv2 = t.nn.Conv2d(D * F1, F2, (1, 1), bias=False)
-        self.batch_norm3 = t.nn.BatchNorm2d(F2)
+        self.batch_norm3 = t.nn.BatchNorm2d(F2, momentum=0.01)
         self.activation2 = t.nn.ELU() if activation == 'elu' else t.nn.ReLU()
         self.dropout2 = t.nn.Dropout(p=p_dropout)
 
         # Fully connected layer (classifier)
-        self.fc = t.nn.Linear(F2 * n_features, N, bias=True)
+        # self.fc = t.nn.Linear(F2 * n_features, N, bias=True)
+        self.fc = ConstrainedLinear(F2 * n_features, N, bias=True, max_weight=reg_rate)
 
         # initialize all weights with xavier_normal, except the bias, which must be initialized
         # with 0. This is the same as the default initialization for keras
         def init_weight(m):
             if isinstance(m, t.nn.Conv2d) or isinstance(m, t.nn.Linear):
-                t.nn.init.xavier_normal_(m.weight)
+                t.nn.init.xavier_uniform_(m.weight)
             if isinstance(m, t.nn.Linear):
-                m.bias.data.zero_()
+                t.nn.init.zeros_(m.bias)
         self.apply(init_weight)
 
     def forward(self, x):
@@ -95,7 +97,7 @@ class EEGNet(t.nn.Module):
 
         # Classification
         x = self.fc(x)               # output dim: (s, N)
-        # x = F.softmax(x, dim=0) # softmax will be applied in the loss function
+        # x = F.softmax(x, dim=0)      # softmax will be applied in the loss function
 
         return x
 
