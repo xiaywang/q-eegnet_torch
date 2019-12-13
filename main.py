@@ -2,18 +2,23 @@
 Main function for EEGnet, work in progress...
 """
 
+from functools import reduce
+
 import torch as t
 from tqdm import tqdm
 
 from eegnet_controller import train_subject_specific, train_subject_specific_cv
 from utils.metrics import metrics_to_csv
+from utils.misc import product_dict
 
 
 DO_CV = False
 N_EPOCHS = 500
 
 BENCHMARK = True
-N_TRIALS = 15
+N_TRIALS = 20
+
+GRID_SEARCH = False
 
 
 def run(do_cv=False, epochs=500, export=True, silent=False):
@@ -39,15 +44,49 @@ def run(do_cv=False, epochs=500, export=True, silent=False):
     return metrics
 
 
+def grid_search(grid_params, epochs=500, silent=False):
+    """
+    Applies GridSearch to determine optimal hyperparameter using Cross Validation
+
+    Parameters:
+     - grid_params: Dictionary, with keys as parameter names, and values as a list
+     - epochs:      Number of epochs to train
+     - silent:      Bool, if True, hide all output (progress bar)
+
+    Returns: List of tuples: (parameters as dict, validation accuracy)
+    """
+    # compute total number of iterations
+    n_iter = reduce(lambda x, y: x * y, [len(param_list) for param_list in grid_params.values()])
+
+    # prepare result
+    # Type: list of tuple: (parameters as dict, accuracy)
+    result = []
+
+    # iterate over all possible combinations
+    with tqdm(total=n_iter * 9, ascii=True, desc='Grid Search') as pbar:
+        for params in product_dict(**grid_params):
+            accuracy = t.zeros((9,))
+            for subject in range(1, 9):
+                _, metrics, _ = train_subject_specific_cv(subject, epochs=epochs, silent=True,
+                                                          plot=False, **params)
+                accuracy[subject-1] = metrics[0, 0]
+
+                # update the progress bar
+                pbar.update()
+
+            # store the average accuracy
+            result.append((params, accuracy.mean()))
+
+    return result
+
+
 def main():
     """
     Main function used for testing
     """
     if BENCHMARK:
-        print("Benchmarking...")
-
         metrics = t.zeros((N_TRIALS, 9, 4))
-        for i in tqdm(range(N_TRIALS), ascii=True):
+        for i in tqdm(range(N_TRIALS), ascii=True, desc='Benchmark'):
             metrics[i, :, :] = run(do_cv=DO_CV, epochs=N_EPOCHS, export=False, silent=True)
 
         # generate the average over the first dimension
@@ -67,6 +106,28 @@ def main():
         print(f"Total Average Accuracy: {overall_avg_acc:.4f} +- {overall_std_acc:.4f}\n")
         for i in range(0, 9):
             print(f"subject {i+1}: accuracy = {avg_metrics[i, 0]:.4f} +- {std_metrics[i, 0]:.4f}")
+
+    elif GRID_SEARCH:
+        # parameters to search
+        grid_params = {
+            'lr': [0.02, 0.01, 0.005],
+            'lr_decay': [0.5, 0.2, 0.1]
+        }
+
+        # do the grid search
+        results = grid_search(grid_params, epochs=N_EPOCHS, silent=False)
+
+        # print the results and get the best accuracy
+        best_accuracy = -1
+        best_params = {}
+        for params, accuracy in results:
+            print(f"{params}:\taccuracy={accuracy}")
+            if best_accuracy < accuracy:
+                best_accuracy = accuracy
+                best_params = params
+
+        # Print the best parameters
+        print(f"\nBest Parameters: {best_params}")
 
     else:
         # normal procedure

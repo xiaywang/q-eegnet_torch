@@ -3,6 +3,8 @@ Miscellanious Functions for the EEGNet
 """
 
 import unittest
+import itertools
+
 import torch as t
 
 
@@ -42,6 +44,28 @@ def class_decision(x):
     Returns t.tensor, size=[n], dtype=long, integer values in range [0, n_classes)
     """
     return x.argmax(axis=1)
+
+
+def product_dict(**kwargs):
+    """
+    Returns an iterator of product over a dictionary.
+
+    Example:
+        product_dict(a=[0,1], b=['X', 'Y'])
+        => {'a': 0, 'b': 'X'}
+           {'a': 1, 'b': 'X'}
+           {'a': 0, 'b': 'Y'}
+           {'a': 1, 'b': 'Y'}
+
+    Parameters:
+     - All parameters must be of an iterable type
+
+    Returns: Iterator, yielding a dictionary as described above
+    """
+    keys = kwargs.keys()
+    vals = kwargs.values()
+    for instance in itertools.product(*vals):
+        yield dict(zip(keys, instance))
 
 
 class TestOneHot(unittest.TestCase):
