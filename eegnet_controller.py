@@ -123,7 +123,6 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
     # prepare loss function and optimizer
     loss_function = t.nn.CrossEntropyLoss()
     optimizer = t.optim.Adam(model.parameters(), lr=lr)
-    scheduler = t.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
 
     # prepare progress bar
     with tqdm(desc=f"Subject {subject}", total=epochs, leave=False, disable=silent,
@@ -132,8 +131,8 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
         # Early stopping is not allowed in this mode, because the testing data cannot be used for
         # training!
         model, metrics, _ = _train_net(subject, model, train_loader, test_loader, loss_function,
-                                       optimizer, scheduler=scheduler, epochs=epochs,
-                                       early_stopping=False, plot=plot, pbar=pbar)
+                                       optimizer, epochs=epochs, early_stopping=False, plot=plot,
+                                       pbar=pbar)
 
     if not silent:
         print(f"Subject {subject}: accuracy = {metrics[0, 0]}")
@@ -241,8 +240,6 @@ def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
         # Backpropagation
         loss.backward()
         optimizer.step()
-        if scheduler:
-            scheduler.step()
 
         # prepare loss and accuracy
         n_samples += x.shape[0]
@@ -251,6 +248,10 @@ def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
         accuracy += (decision == y).sum().item()
 
     running_loss = running_loss / n_samples
+
+    if scheduler:
+        scheduler.step(running_loss)
+
     accuracy = accuracy / n_samples
     return running_loss, accuracy
 

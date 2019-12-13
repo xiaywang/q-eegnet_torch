@@ -8,7 +8,7 @@ import numpy as np
 import scipy.io as sio
 import torch as t
 
-from .filters import bandpass
+from .filters import highpass
 
 __author__ = "Michael Hersche and Tino Rellstab, modified by Tibor Schneider"
 __email__ = "herschmi@ethz.ch, tinor@ethz.ch, sctibor@ethz.ch"
@@ -30,7 +30,7 @@ def get_data(subject, training, data_path=None, do_filter=False):
      - do_filter: bool, apply highpass filter at fc= 4Hz if true
 
     Returns: data_return,  numpy matrix, size = NO_valid_trial x 22 x 1750
-             class_return, numpy matrix,	size = NO_valid_trial
+             class_return, numpy matrix, size = NO_valid_trial
     """
 
     if data_path is None:
@@ -65,7 +65,7 @@ def get_data(subject, training, data_path=None, do_filter=False):
         # apply filter
         if do_filter:
             for ch in range(a_X.shape[1]):
-                a_X[:, ch] = bandpass(a_X[:, ch], a_fs, 4, 40)
+                a_X[:, ch] = highpass(a_X[:, ch], a_fs, 4)
 
         for trial in range(0, a_trial.size):
             if a_artifacts[trial] == 0:
