@@ -12,8 +12,58 @@ import numpy as np
 
 from tabulate import tabulate
 
+_SUMMARY_ALREADY_SHOWN = False
 
-def summary(model, input_size, batch_size=-1, device="cuda", print_mem=False, model_params=None):
+
+def print_summary(model, optimizer, loss_function, scheduler=None, batch_size=-1, device="cuda",
+                  print_mem=False, print_once=True):
+    """
+    Print entire summary of the training.
+
+    Shows the model (including hyperparameters) and optimizer (including loss and scheduler)
+    """
+    global _SUMMARY_ALREADY_SHOWN
+    if not print_once or not _SUMMARY_ALREADY_SHOWN:
+        _SUMMARY_ALREADY_SHOWN = True
+        print("")
+
+        # print optimizer, loss function and scheduler
+        optim_table = []
+        if isinstance(optimizer, torch.optim.Adam):
+            optim_table.append(["Optimizer", "Adam"])
+            optim_table.append(["  learning rate", optimizer.defaults['lr']])
+        else:
+            raise NotImplementedError(f"{type(optimizer)} is not implemented!")
+
+        optim_table.append(["Loss function", str(loss_function)])
+
+        if scheduler is None:
+            optim_table.append(["Scheduler", "None"])
+        elif isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            optim_table.append(["Scheduler", "Reduce LR on platau"])
+            optim_table.append(["  factor", scheduler.factor])
+            optim_table.append(["  pacience", scheduler.pacience])
+            optim_table.append(["  threshold", scheduler.threshold])
+        else:
+            raise NotImplementedError(f"{type(scheduler)} is not implemented!")
+        print(tabulate(optim_table, tablefmt='orgtbl'))
+        print("")
+
+        # print hyper parameters
+        param_table = [["F1 (# spectral filters)", model.F1],
+                       ["F2 (# spatial filters)", model.F2],
+                       ["Dropout probability", model.p_dropout],
+                       ["Dropout type", model.dropout_type],
+                       ["Constrain weights", model.constrain_w],
+                       ["Activation type", 'ELU' if model.activation == 'elu' else 'ReLU']]
+        print(tabulate(param_table, ['Hyperparameter', 'Value'], tablefmt='orgtbl'))
+        print("")
+
+        # print the model summary
+        _model_summary(model, (model.C, model.T), batch_size=1, device=device, print_mem=print_mem)
+
+
+def _model_summary(model, input_size, batch_size=-1, device="cuda", print_mem=False):
 
     def register_hook(module):
 
@@ -81,14 +131,6 @@ def summary(model, input_size, batch_size=-1, device="cuda", print_mem=False, mo
     for h in hooks:
         h.remove()
 
-    # print all model parameters
-    if model_params:
-        print("")
-        param_table = [[key, value] for key, value in model_params.items()]
-        print(tabulate(param_table, ['Hyperparameter', 'Value'], tablefmt='orgtbl'))
-
-    print("")
-
     # prepare network table
     net_table = []
     total_params = 0
@@ -124,4 +166,3 @@ def summary(model, input_size, batch_size=-1, device="cuda", print_mem=False, mo
                      ["Estimated Total Size (MB)", total_size]]
         print(tabulate(mem_table, tablefmt='orgtbl'))
         print("")
-    # return summary

@@ -11,6 +11,8 @@ from utils.metrics import get_metrics_from_model
 from utils.misc import class_decision
 from utils.early_stopping import EarlyStopping
 
+from utils.summary import print_summary
+
 
 def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr=0.001,
                               early_stopping=True, silent=False, plot=True, **kwargs):
@@ -129,6 +131,10 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
     # prepare loss function and optimizer
     loss_function = t.nn.CrossEntropyLoss()
     optimizer = t.optim.Adam(model.parameters(), lr=lr, eps=1e-7)
+    scheduler = None
+
+    # print the training setup
+    print_summary(model, optimizer, loss_function, scheduler)
 
     # prepare progress bar
     with tqdm(desc=f"Subject {subject}", total=epochs, leave=False, disable=silent,
@@ -137,8 +143,8 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
         # Early stopping is not allowed in this mode, because the testing data cannot be used for
         # training!
         model, metrics, _ = _train_net(subject, model, train_loader, test_loader, loss_function,
-                                       optimizer, epochs=epochs, early_stopping=False, plot=plot,
-                                       pbar=pbar)
+                                       optimizer, scheduler=scheduler, epochs=epochs,
+                                       early_stopping=False, plot=plot, pbar=pbar)
 
     if not silent:
         print(f"Subject {subject}: accuracy = {metrics[0, 0]}")

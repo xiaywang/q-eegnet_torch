@@ -1,8 +1,5 @@
 import torch as t
 import torch.nn.functional as F
-from utils.summary import summary as model_summary
-
-_PRINT_SUMMARY = True
 
 
 class EEGNet(t.nn.Module):
@@ -10,7 +7,7 @@ class EEGNet(t.nn.Module):
     EEGNet
     """
     def __init__(self, F1=8, D=2, F2=None, C=22, T=1125, N=4, p_dropout=0.5, reg_rate=0.25,
-                 activation='relu', constrain_w=False, dropout_type='dropout', summary=True):
+                 activation='relu', constrain_w=False, dropout_type='dropout'):
         """
         F1:           Number of spectral filters
         D:            Number of spacial filters (per spectral filter), F2 = F1 * D
@@ -24,7 +21,6 @@ class EEGNet(t.nn.Module):
         activation:   string, either 'elu' or 'relu'
         constrain_w:  bool, if True, constrain weights of spatial convolution and final fc-layer
         dropout_type: string, either 'dropout' or 'SpatialDropout2d'
-        summary:      bool, if True, print the summary of the network, including parameters
         """
         super(EEGNet, self).__init__()
 
@@ -46,6 +42,11 @@ class EEGNet(t.nn.Module):
         else:
             raise ValueError("dropout_type must be one of SpatialDropout2d, Dropout or "
                              "WrongDropout2d")
+
+        # store local values
+        self.F1, self.D, self.F2, self.C, self.T, self.N = (F1, D, F2, C, T, N)
+        self.p_dropout, self.reg_rate, self.activation = (p_dropout, reg_rate, activation)
+        self.constrain_w, self.dropout_type = (constrain_w, dropout_type)
 
         # Number of input neurons to the final fully connected layer
         n_features = (T // 8) // 8
@@ -79,20 +80,6 @@ class EEGNet(t.nn.Module):
             self.fc = ConstrainedLinear(F2 * n_features, N, bias=True, max_weight=reg_rate)
         else:
             self.fc = t.nn.Linear(F2 * n_features, N, bias=True)
-
-        global _PRINT_SUMMARY
-        if summary and _PRINT_SUMMARY:
-            # print the summary of the network
-            _PRINT_SUMMARY = False  # print the summary only once
-            model_summary(self, (C, T), batch_size=32, device="cpu",
-                          model_params={
-                              "F1 (# spectral filters)": F1,
-                              "F2 (# spatial filters)": F2,
-                              "Dropout probability": p_dropout,
-                              "Dropout type": dropout_type,
-                              "Constrain weights": constrain_w,
-                              "Activation type": 'ELU' if activation == 'elu' else 'ReLU'
-                          })
 
     def forward(self, x):
 
