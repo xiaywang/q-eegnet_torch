@@ -13,7 +13,7 @@ from utils.early_stopping import EarlyStopping
 
 
 def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr=0.001,
-                              early_stopping=True, silent=False, plot=True):
+                              early_stopping=True, silent=False, plot=True, **kwargs):
     """
     Trains a subject specific model for the given subject, using K-Fold Cross Validation
 
@@ -26,6 +26,7 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
      - early_stopping: bool, approximate the number of epochs to train the network for the subject.
      - silent:         bool, if True, generate no output, including progress bar
      - plot:           bool, if True, generates plots
+     - kwargs:         remaining parameters are passed to the EEGnet model
 
     Returns: (models, metrics, epoch)
      - models:  List of t.nn.Module, size = [n_splits]
@@ -43,7 +44,7 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
     samples, labels = as_tensor(samples, labels)
 
     # prepare the models
-    models = [EEGNet(T=samples.shape[2]) for _ in range(n_splits)]
+    models = [EEGNet(T=samples.shape[2], **kwargs) for _ in range(n_splits)]
     metrics = t.zeros((n_splits, 4))
     best_epoch = np.zeros(n_splits)
 
@@ -68,6 +69,7 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
 
             # prepare the model
             model = models[split]
+            model.initialize_params()
             if t.cuda.is_available():
                 model = model.cuda()
 
@@ -93,7 +95,8 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
     return models, metrics, int(best_epoch.mean().round())
 
 
-def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=False, plot=True):
+def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=False, plot=True,
+                           **kwargs):
     """
     Trains a subject specific model for the given subject
 
@@ -104,6 +107,7 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
      - lr:         Learning Rate
      - silent:     bool, if True, hide all output including the progress bar
      - plot:       bool, if True, generate plots
+     - kwargs:     Remaining arguments passed to the EEGnet model
 
     Returns: (model, metrics)
      - model:   t.nn.Module, trained model
@@ -113,16 +117,18 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
     train_samples, train_labels = get_data(subject, training=True)
     test_samples, test_labels = get_data(subject, training=False)
     train_loader = as_data_loader(train_samples, train_labels, batch_size=batch_size)
-    test_loader = as_data_loader(test_samples, test_labels, batch_size=test_labels.shape[0])
+    # test_loader = as_data_loader(test_samples, test_labels, batch_size=test_labels.shape[0])
+    test_loader = as_data_loader(test_samples, test_labels, batch_size=batch_size)
 
     # prepare the model
-    model = EEGNet(T=train_samples.shape[2])
+    model = EEGNet(T=train_samples.shape[2], **kwargs)
+    model.initialize_params()
     if t.cuda.is_available():
         model = model.cuda()
 
     # prepare loss function and optimizer
     loss_function = t.nn.CrossEntropyLoss()
-    optimizer = t.optim.Adam(model.parameters(), lr=lr)
+    optimizer = t.optim.Adam(model.parameters(), lr=lr, eps=1e-7)
 
     # prepare progress bar
     with tqdm(desc=f"Subject {subject}", total=epochs, leave=False, disable=silent,

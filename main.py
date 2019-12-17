@@ -35,7 +35,9 @@ def run(do_cv=False, epochs=500, export=True, silent=False):
             epochs = best_epoch
 
         _model, subject_metrics = train_subject_specific(subject, epochs=epochs, silent=silent,
-                                                         plot=export)
+                                                         plot=export, activation='elu',
+                                                         constrain_w=True,
+                                                         dropout_type='WrongDropout2D')
         metrics[subject-1, :] = subject_metrics[0, :]
 
     if export:
