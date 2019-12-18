@@ -5,9 +5,11 @@ Main function for EEGnet, work in progress...
 from functools import reduce
 
 import torch as t
+import numpy as np
 from tqdm import tqdm
 
 from eegnet_controller import train_subject_specific, train_subject_specific_cv
+from eegnet_controller import test_model_from_keras
 from utils.metrics import metrics_to_csv
 from utils.misc import product_dict
 
@@ -19,6 +21,8 @@ BENCHMARK = True
 N_TRIALS = 20
 
 GRID_SEARCH = False
+
+TEST_KERAS_MODEL = False
 
 
 def run(do_cv=False, epochs=500, export=True, silent=False):
@@ -36,8 +40,8 @@ def run(do_cv=False, epochs=500, export=True, silent=False):
 
         _model, subject_metrics = train_subject_specific(subject, epochs=epochs, silent=silent,
                                                          plot=export, activation='elu',
-                                                         constrain_w=True,
-                                                         dropout_type='WrongDropout2D')
+                                                         constrain_w=True, p_dropout=0.5,
+                                                         dropout_type='Dropout')
         metrics[subject-1, :] = subject_metrics[0, :]
 
     if export:
@@ -86,7 +90,16 @@ def main():
     """
     Main function used for testing
     """
-    if BENCHMARK:
+    if TEST_KERAS_MODEL:
+        acc = np.zeros((9,))
+        for subject in range(1, 10):
+            _, accuracy = test_model_from_keras(subject)
+            acc[subject-1] = accuracy
+            print(f"Subject {subject}: accuracy = {accuracy}")
+
+        print(f"\nAverage Accuracy: {acc.mean()}")
+
+    elif BENCHMARK:
         metrics = t.zeros((N_TRIALS, 9, 4))
         for i in tqdm(range(N_TRIALS), ascii=True, desc='Benchmark'):
             metrics[i, :, :] = run(do_cv=DO_CV, epochs=N_EPOCHS, export=False, silent=True)

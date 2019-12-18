@@ -67,7 +67,7 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
             train_ds = t.utils.data.TensorDataset(samples[train_idx], labels[train_idx])
             val_ds = t.utils.data.TensorDataset(samples[val_idx], labels[val_idx])
             train_loader = t.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-            val_loader = t.utils.data.DataLoader(val_ds, batch_size=len(val_idx), shuffle=True)
+            val_loader = t.utils.data.DataLoader(val_ds, batch_size=batch_size, shuffle=True)
 
             # prepare the model
             model = models[split]
@@ -149,6 +149,34 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
     if not silent:
         print(f"Subject {subject}: accuracy = {metrics[0, 0]}")
     return model, metrics
+
+
+def test_model_from_keras(subject, batch_size=32,
+                          folder='/scratch/sem19h24/EEGNet_reformat/EEGnet/initialModels/'):
+    """
+    Import the keras model and test it
+
+    Parameters:
+        subject:    Number between 1 and 9
+        batch_size: Batch Size to test the model
+        folder:     Folder where the model files are found.
+
+    returns: loss, accuracy
+    """
+
+    # Just use the default values and hope all dimensions are fine...
+    model = EEGNet()
+    model.load_model_params_from_keras(f"{folder}model{subject-1}_torch.npz")
+    if t.cuda.is_available():
+        model = model.cuda()
+
+    # get dataloader
+    test_samples, test_labels = get_data(subject, training=False)
+    test_loader = as_data_loader(test_samples, test_labels, batch_size=batch_size)
+
+    # prepare loss function, no optimizer necessary
+    loss_function = t.nn.CrossEntropyLoss()
+    return _test_net(model, test_loader, loss_function, train=False)
 
 
 def _train_net(subject, model, train_loader, val_loader, loss_function, optimizer, scheduler=None,
