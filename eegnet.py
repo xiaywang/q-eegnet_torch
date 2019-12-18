@@ -1,3 +1,4 @@
+import numpy as np
 import torch as t
 import torch.nn.functional as F
 
@@ -52,7 +53,7 @@ class EEGNet(t.nn.Module):
         n_features = (T // 8) // 8
 
         # Block 1
-        self.conv1_pad = t.nn.ZeroPad2d((32, 31, 0, 0))
+        self.conv1_pad = t.nn.ZeroPad2d((31, 32, 0, 0))
         self.conv1 = t.nn.Conv2d(1, F1, (1, 64), bias=False)
         self.batch_norm1 = t.nn.BatchNorm2d(F1, momentum=0.01, eps=0.001)
         # By setting groups=F1 (input dimension), we get a depthwise convolution
@@ -62,20 +63,23 @@ class EEGNet(t.nn.Module):
         else:
             self.conv2 = t.nn.Conv2d(F1, D * F1, (C, 1), groups=F1, bias=False)
         self.batch_norm2 = t.nn.BatchNorm2d(D * F1, momentum=0.01, eps=0.001)
-        self.activation1 = t.nn.ELU() if activation == 'elu' else t.nn.ReLU()
+        self.activation1 = t.nn.ELU(inplace=True) if activation == 'elu' else t.nn.ReLU(inplace=True)
+        self.pool1 = t.nn.AvgPool2d((1, 8))
         self.dropout1 = dropout(p=p_dropout)
 
         # Block 2
         # Separable Convolution (as described in the paper) is a depthwise convolution followed by
         # a pointwise convolution.
-        self.sep_conv_pad = t.nn.ZeroPad2d((8, 7, 0, 0))
+        self.sep_conv_pad = t.nn.ZeroPad2d((7, 8, 0, 0))
         self.sep_conv1 = t.nn.Conv2d(D * F1, D * F1, (1, 16), groups=D * F1, bias=False)
         self.sep_conv2 = t.nn.Conv2d(D * F1, F2, (1, 1), bias=False)
         self.batch_norm3 = t.nn.BatchNorm2d(F2, momentum=0.01, eps=0.001)
-        self.activation2 = t.nn.ELU() if activation == 'elu' else t.nn.ReLU()
+        self.activation2 = t.nn.ELU(inplace=True) if activation == 'elu' else t.nn.ReLU(inplace=True)
+        self.pool2 = t.nn.AvgPool2d((1, 8))
         self.dropout2 = dropout(p=p_dropout)
 
         # Fully connected layer (classifier)
+        self.flatten = t.nn.Flatten()
         if constrain_w:
             self.fc = ConstrainedLinear(F2 * n_features, N, bias=True, max_weight=reg_rate)
         else:
@@ -95,7 +99,7 @@ class EEGNet(t.nn.Module):
         x = self.conv2(x)            # output dim: (s, D * F1, 1, T-1)
         x = self.batch_norm2(x)
         x = self.activation1(x)
-        x = F.avg_pool2d(x, (1, 8))  # output dim: (s, D * F1, 1, T // 8)
+        x = self.pool1(x)            # output dim: (s, D * F1, 1, T // 8)
         x = self.dropout1(x)
 
         # Block2
@@ -104,12 +108,11 @@ class EEGNet(t.nn.Module):
         x = self.sep_conv2(x)        # output dim: (s, F2, 1, T // 8 - 1)
         x = self.batch_norm3(x)
         x = self.activation2(x)
-        x = F.avg_pool2d(x, (1, 8))  # output dim: (s, F2, 1, T // 64)
+        x = self.pool2(x)            # output dim: (s, F2, 1, T // 64)
         x = self.dropout2(x)
 
         # Classification
-        # flatten all the dimensions
-        x = x.view(x.shape[0], -1)   # output dim: (s, F2 * (T // 64))
+        x = self.flatten(x)          # output dim: (s, F2 * (T // 64))
         x = self.fc(x)               # output dim: (s, N)
 
         return x
@@ -148,6 +151,68 @@ class EEGNet(t.nn.Module):
         for s in size:
             num_features *= s
         return num_features
+
+    def load_model_params_from_keras(self, filename):
+        """
+        Loads parameters exported from keras (with custom export script) and changes current model
+        """
+        data = np.load(filename)
+
+        # load spectral convolution
+        assert data['spectral_conv'].shape == tuple(self.conv1.weight.shape)
+        self.conv1.weight = t.nn.Parameter(t.Tensor(data['spectral_conv']))
+
+        # load batch norm 1
+        assert data['batch_norm1_beta'].shape == tuple(self.batch_norm1.bias.shape)
+        assert data['batch_norm1_gamma'].shape == tuple(self.batch_norm1.weight.shape)
+        assert data['batch_norm1_moving_mean'].shape == tuple(self.batch_norm1.running_mean.shape)
+        assert data['batch_norm1_moving_var'].shape == tuple(self.batch_norm1.running_var.shape)
+        self.batch_norm1.bias = t.nn.Parameter(t.Tensor(data['batch_norm1_beta']))
+        self.batch_norm1.weight = t.nn.Parameter(t.Tensor(data['batch_norm1_gamma']))
+        self.batch_norm1.running_mean = t.nn.Parameter(t.Tensor(data['batch_norm1_moving_mean']),
+                                                       requires_grad=False)
+        self.batch_norm1.running_var = t.nn.Parameter(t.Tensor(data['batch_norm1_moving_var']),
+                                                      requires_grad=False)
+
+        # load spatial convolution
+        assert data['spatial_conv'].shape == tuple(self.conv2.weight.shape)
+        self.conv2.weight = t.nn.Parameter(t.Tensor(data['spatial_conv']))
+
+        # load batch norm 2
+        assert data['batch_norm2_beta'].shape == tuple(self.batch_norm2.bias.shape)
+        assert data['batch_norm2_gamma'].shape == tuple(self.batch_norm2.weight.shape)
+        assert data['batch_norm2_moving_mean'].shape == tuple(self.batch_norm2.running_mean.shape)
+        assert data['batch_norm2_moving_var'].shape == tuple(self.batch_norm2.running_var.shape)
+        self.batch_norm2.bias = t.nn.Parameter(t.Tensor(data['batch_norm2_beta']))
+        self.batch_norm2.weight = t.nn.Parameter(t.Tensor(data['batch_norm2_gamma']))
+        self.batch_norm2.running_mean = t.nn.Parameter(t.Tensor(data['batch_norm2_moving_mean']),
+                                                       requires_grad=False)
+        self.batch_norm2.running_var = t.nn.Parameter(t.Tensor(data['batch_norm2_moving_var']),
+                                                      requires_grad=False)
+
+        # load separable convolution
+        assert data['sep_conv1'].shape == tuple(self.sep_conv1.weight.shape)
+        assert data['sep_conv2'].shape == tuple(self.sep_conv2.weight.shape)
+        self.sep_conv1.weight = t.nn.Parameter(t.Tensor(data['sep_conv1']))
+        self.sep_conv2.weight = t.nn.Parameter(t.Tensor(data['sep_conv2']))
+
+        # load batch norm 2
+        assert data['batch_norm3_beta'].shape == tuple(self.batch_norm3.bias.shape)
+        assert data['batch_norm3_gamma'].shape == tuple(self.batch_norm3.weight.shape)
+        assert data['batch_norm3_moving_mean'].shape == tuple(self.batch_norm3.running_mean.shape)
+        assert data['batch_norm3_moving_var'].shape == tuple(self.batch_norm3.running_var.shape)
+        self.batch_norm3.bias = t.nn.Parameter(t.Tensor(data['batch_norm3_beta']))
+        self.batch_norm3.weight = t.nn.Parameter(t.Tensor(data['batch_norm3_gamma']))
+        self.batch_norm3.running_mean = t.nn.Parameter(t.Tensor(data['batch_norm3_moving_mean']),
+                                                       requires_grad=False)
+        self.batch_norm3.running_var = t.nn.Parameter(t.Tensor(data['batch_norm3_moving_var']),
+                                                      requires_grad=False)
+
+        # load dense layer
+        assert data['dense_w'].shape == tuple(self.fc.weight.shape)
+        assert data['dense_b'].shape == tuple(self.fc.bias.shape)
+        self.fc.weight = t.nn.Parameter(t.Tensor(data['dense_w']))
+        self.fc.bias = t.nn.Parameter(t.Tensor(data['dense_b']))
 
 
 class ConstrainedConv2d(t.nn.Conv2d):
