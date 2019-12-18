@@ -31,7 +31,10 @@ def print_summary(model, optimizer, loss_function, scheduler=None, batch_size=-1
         optim_table = []
         if isinstance(optimizer, torch.optim.Adam):
             optim_table.append(["Optimizer", "Adam"])
-            optim_table.append(["  learning rate", optimizer.defaults['lr']])
+            optim_table.append(["> learning rate", optimizer.defaults['lr']])
+        elif isinstance(optimizer, torch.optim.SGD):
+            optim_table.append(["Optimizer", "SGD"])
+            optim_table.append(["> learning rate", optimizer.defaults['lr']])
         else:
             raise NotImplementedError(f"{type(optimizer)} is not implemented!")
 
@@ -41,12 +44,12 @@ def print_summary(model, optimizer, loss_function, scheduler=None, batch_size=-1
             optim_table.append(["Scheduler", "None"])
         elif isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
             optim_table.append(["Scheduler", "Reduce LR on platau"])
-            optim_table.append(["  factor", scheduler.factor])
-            optim_table.append(["  pacience", scheduler.pacience])
-            optim_table.append(["  threshold", scheduler.threshold])
+            optim_table.append(["> factor", scheduler.factor])
+            optim_table.append(["> pacience", scheduler.pacience])
+            optim_table.append(["> threshold", scheduler.threshold])
         else:
             raise NotImplementedError(f"{type(scheduler)} is not implemented!")
-        print(tabulate(optim_table, tablefmt='orgtbl'))
+        print(tabulate(optim_table, ["Learning Method", ""], tablefmt='orgtbl'))
         print("")
 
         # print hyper parameters
