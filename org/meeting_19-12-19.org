@@ -3,3 +3,22 @@ SCHEDULED: <2019-12-19 Thu>
 ** Preparation
 *** EEGNet: Reach same accuracy as Keras (71%)
 *** Test out all the different possibilities and write them down.
+** Progress (What I have tried)
+[[file:results.org][results.org]]
+*** In depth comparison of the model
+**** Updated Batch Normalization Momentum to match Keras. No significant change
+**** Same epsilon for Batch Normalization and Adam. No significant change
+*** Use of ~SpatialDropout2D~
+**** No significant change for the Keras model.
+**** Interestingly: When using ~SpatialDropout2D~ with ~channels_last~ as data format (instead of ~channels_first~), got an improvement of more than 1% (reaching *72.3% +- 3.1%*)
+**** For Torch model, performance decreased with regular ~SpatialDropout2D~, but stayed about the same when using the wrong ~channels_last~ format.
+*** Using no ~BatchNormalization~ and compared the results
+**** Torch model achieves 2% better accuracy than the Keras model (reaching 65.2%)
+*** Using ~SDG~ instead of ~Adam~, with ~lr=0.01~
+**** Torch model achieves 3% better accuracy than the Keras model (reaching 67.6%)
+*** Exporting the model from Keras, transforming the matrices and importing into Torch
+**** Not working (yet), got a result corresponding to random guessing (25%)
+**** Small example of transforming convolutional and linear layers are working (tested with l2 norm)
+**** TODO Test the same when combining multiple layers, extend to small dummy EEGNet without training to find the difference
+** Next Steps:
+*** Ignore the difference, use Torch Result (70.0%) as reference accuracy, and continue with quantizing the network.
