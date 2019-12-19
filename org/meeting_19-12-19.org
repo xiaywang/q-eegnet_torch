@@ -1,8 +1,8 @@
 * Meeting 19.12.2019
 SCHEDULED: <2019-12-19 Thu>
 ** Preparation
-*** EEGNet: Reach same accuracy as Keras (71%)
-*** Test out all the different possibilities and write them down.
+*** TODO EEGNet: Reach same accuracy as Keras (71%)
+*** DONE Test out all the different possibilities and write them down.
 ** Progress (What I have tried)
 [[file:results.org][results.org]]
 *** In depth comparison of the model
@@ -21,4 +21,15 @@ SCHEDULED: <2019-12-19 Thu>
 **** Small example of transforming convolutional and linear layers are working (tested with l2 norm)
 **** TODO Test the same when combining multiple layers, extend to small dummy EEGNet without training to find the difference
 ** Next Steps:
-*** Ignore the difference, use Torch Result (70.0%) as reference accuracy, and continue with quantizing the network.
+*** Stuff to try in order to achieve the same accuracy:
+**** Which dropout makes the difference
+**** Is flatten really different?
+**** Average training curves and compare
+**** Use SGD + ~ReduceLROnPlateau~
+*** Start Quantization with reference value reached in Torch
+**** Linear Quantization
+**** 8bit for both the weights and the activations
+**** Integrate in QuantLab, instead of the Quantization framework of Torch
+** Weekly Meeting: Every Wendsday at 14:00, starting from 08.01.2020
+
+
