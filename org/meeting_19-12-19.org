@@ -24,6 +24,11 @@ SCHEDULED: <2019-12-19 Thu>
 *** Stuff to try in order to achieve the same accuracy:
 **** Which dropout makes the difference
 **** Is flatten really different?
+***** Answer: ~channels_last~ does make the difference. Added ~PermutedFlatten~, which does:
+#+BEGIN_SRC python
+def forward(input):
+    return input.permute(0, 2, 3, 1).flatten()
+#+END_SRC
 **** Average training curves and compare
 **** Use SGD + ~ReduceLROnPlateau~
 *** Start Quantization with reference value reached in Torch

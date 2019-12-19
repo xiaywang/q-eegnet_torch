@@ -8,7 +8,8 @@ class EEGNet(t.nn.Module):
     EEGNet
     """
     def __init__(self, F1=8, D=2, F2=None, C=22, T=1125, N=4, p_dropout=0.5, reg_rate=0.25,
-                 activation='relu', constrain_w=False, dropout_type='dropout'):
+                 activation='relu', constrain_w=False, dropout_type='dropout',
+                 permuted_flatten=False):
         """
         F1:           Number of spectral filters
         D:            Number of spacial filters (per spectral filter), F2 = F1 * D
@@ -22,6 +23,7 @@ class EEGNet(t.nn.Module):
         activation:   string, either 'elu' or 'relu'
         constrain_w:  bool, if True, constrain weights of spatial convolution and final fc-layer
         dropout_type: string, either 'dropout' or 'SpatialDropout2d'
+        permuted_flatten: bool, if True, use the permuted flatten to make the model keras compliant
         """
         super(EEGNet, self).__init__()
 
@@ -79,7 +81,10 @@ class EEGNet(t.nn.Module):
         self.dropout2 = dropout(p=p_dropout)
 
         # Fully connected layer (classifier)
-        self.flatten = t.nn.Flatten()
+        if permuted_flatten:
+            self.flatten = PermutedFlatten()
+        else:
+                self.flatten = t.nn.Flatten()
         if constrain_w:
             self.fc = ConstrainedLinear(F2 * n_features, N, bias=True, max_weight=reg_rate)
         else:
@@ -275,3 +280,14 @@ class WrongDropout2d(t.nn.Dropout2d):
             input = F.dropout2d(input, self.p, True, self.inplace)
             input = input.permute(0, 2, 3, 1)
         return input
+
+
+class PermutedFlatten(t.nn.Flatten):
+    """
+    Flattens the input vector in the same way as Keras does
+    """
+    def __init__(self, start_dim=1, end_dim=-1):
+        super(PermutedFlatten, self).__init__(start_dim, end_dim)
+
+    def forward(self, input):
+        return input.permute(0, 2, 3, 1).flatten(self.start_dim, self.end_dim)
