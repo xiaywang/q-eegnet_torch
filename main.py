@@ -18,12 +18,12 @@ from utils.plot_results import plot_loss_accuracy
 DO_CV = False
 N_EPOCHS = 500
 
-BENCHMARK = True
+BENCHMARK = False
 N_TRIALS = 20
 
 GRID_SEARCH = False
 
-TEST_KERAS_MODEL = True
+TEST_KERAS_MODEL = False
 
 
 def run(do_cv=False, epochs=500, export=True, silent=False):
