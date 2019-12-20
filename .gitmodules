@@ -1,0 +1,3 @@
+[submodule "quantlab-rpr"]
+	path = quantlab-rpr
+	url = https://iis-git.ee.ethz.ch/sctibor/quantlab-rpr
