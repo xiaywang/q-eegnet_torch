@@ -19,7 +19,8 @@ SCHEDULED: <2019-12-19 Thu>
 *** Exporting the model from Keras, transforming the matrices and importing into Torch
 **** Not working (yet), got a result corresponding to random guessing (25%)
 **** Small example of transforming convolutional and linear layers are working (tested with l2 norm)
-**** TODO Test the same when combining multiple layers, extend to small dummy EEGNet without training to find the difference
+**** DONE Test the same when combining multiple layers, extend to small dummy EEGNet without training to find the difference
+Both models are actually equal. Thus, training must be different.
 ** Next Steps:
 *** Stuff to try in order to achieve the same accuracy:
 **** Which dropout makes the difference
@@ -29,6 +30,7 @@ SCHEDULED: <2019-12-19 Thu>
 def forward(input):
     return input.permute(0, 2, 3, 1).flatten()
 #+END_SRC
+But Does it make a difference? *No*
 **** Average training curves and compare
 **** Use SGD + ~ReduceLROnPlateau~
 *** Start Quantization with reference value reached in Torch
