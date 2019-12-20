@@ -22,7 +22,7 @@ class EEGNet(t.nn.Module):
                       This parameter is ignored when constrain_w is not asserted
         activation:   string, either 'elu' or 'relu'
         constrain_w:  bool, if True, constrain weights of spatial convolution and final fc-layer
-        dropout_type: string, either 'dropout' or 'SpatialDropout2d'
+        dropout_type: string, either 'dropout', 'SpatialDropout2d' or 'TimeDropout2D'
         permuted_flatten: bool, if True, use the permuted flatten to make the model keras compliant
         """
         super(EEGNet, self).__init__()
@@ -40,8 +40,8 @@ class EEGNet(t.nn.Module):
             dropout = t.nn.Dropout
         elif dropout_type.lower() == 'spatialdropout2d':
             dropout = t.nn.Dropout2d
-        elif dropout_type.lower() == 'wrongdropout2d':
-            dropout = WrongDropout2d
+        elif dropout_type.lower() == 'timedropout2d':
+            dropout = TimeDropout2d
         else:
             raise ValueError("dropout_type must be one of SpatialDropout2d, Dropout or "
                              "WrongDropout2d")
@@ -84,7 +84,7 @@ class EEGNet(t.nn.Module):
         if permuted_flatten:
             self.flatten = PermutedFlatten()
         else:
-                self.flatten = t.nn.Flatten()
+            self.flatten = t.nn.Flatten()
         if constrain_w:
             self.fc = ConstrainedLinear(F2 * n_features, N, bias=True, max_weight=reg_rate)
         else:
@@ -164,58 +164,40 @@ class EEGNet(t.nn.Module):
         data = np.load(filename)
 
         # load spectral convolution
-        assert data['spectral_conv'].shape == tuple(self.conv1.weight.shape)
         self.conv1.weight = t.nn.Parameter(t.Tensor(data['spectral_conv']))
 
         # load batch norm 1
-        assert data['batch_norm1_beta'].shape == tuple(self.batch_norm1.bias.shape)
-        assert data['batch_norm1_gamma'].shape == tuple(self.batch_norm1.weight.shape)
-        assert data['batch_norm1_moving_mean'].shape == tuple(self.batch_norm1.running_mean.shape)
-        assert data['batch_norm1_moving_var'].shape == tuple(self.batch_norm1.running_var.shape)
-        self.batch_norm1.bias = t.nn.Parameter(t.Tensor(data['batch_norm1_beta']))
         self.batch_norm1.weight = t.nn.Parameter(t.Tensor(data['batch_norm1_gamma']))
+        self.batch_norm1.bias = t.nn.Parameter(t.Tensor(data['batch_norm1_beta']))
         self.batch_norm1.running_mean = t.nn.Parameter(t.Tensor(data['batch_norm1_moving_mean']),
                                                        requires_grad=False)
         self.batch_norm1.running_var = t.nn.Parameter(t.Tensor(data['batch_norm1_moving_var']),
                                                       requires_grad=False)
 
         # load spatial convolution
-        assert data['spatial_conv'].shape == tuple(self.conv2.weight.shape)
         self.conv2.weight = t.nn.Parameter(t.Tensor(data['spatial_conv']))
 
         # load batch norm 2
-        assert data['batch_norm2_beta'].shape == tuple(self.batch_norm2.bias.shape)
-        assert data['batch_norm2_gamma'].shape == tuple(self.batch_norm2.weight.shape)
-        assert data['batch_norm2_moving_mean'].shape == tuple(self.batch_norm2.running_mean.shape)
-        assert data['batch_norm2_moving_var'].shape == tuple(self.batch_norm2.running_var.shape)
-        self.batch_norm2.bias = t.nn.Parameter(t.Tensor(data['batch_norm2_beta']))
         self.batch_norm2.weight = t.nn.Parameter(t.Tensor(data['batch_norm2_gamma']))
+        self.batch_norm2.bias = t.nn.Parameter(t.Tensor(data['batch_norm2_beta']))
         self.batch_norm2.running_mean = t.nn.Parameter(t.Tensor(data['batch_norm2_moving_mean']),
                                                        requires_grad=False)
         self.batch_norm2.running_var = t.nn.Parameter(t.Tensor(data['batch_norm2_moving_var']),
                                                       requires_grad=False)
 
         # load separable convolution
-        assert data['sep_conv1'].shape == tuple(self.sep_conv1.weight.shape)
-        assert data['sep_conv2'].shape == tuple(self.sep_conv2.weight.shape)
         self.sep_conv1.weight = t.nn.Parameter(t.Tensor(data['sep_conv1']))
         self.sep_conv2.weight = t.nn.Parameter(t.Tensor(data['sep_conv2']))
 
-        # load batch norm 2
-        assert data['batch_norm3_beta'].shape == tuple(self.batch_norm3.bias.shape)
-        assert data['batch_norm3_gamma'].shape == tuple(self.batch_norm3.weight.shape)
-        assert data['batch_norm3_moving_mean'].shape == tuple(self.batch_norm3.running_mean.shape)
-        assert data['batch_norm3_moving_var'].shape == tuple(self.batch_norm3.running_var.shape)
-        self.batch_norm3.bias = t.nn.Parameter(t.Tensor(data['batch_norm3_beta']))
+        # load batch norm 3
         self.batch_norm3.weight = t.nn.Parameter(t.Tensor(data['batch_norm3_gamma']))
+        self.batch_norm3.bias = t.nn.Parameter(t.Tensor(data['batch_norm3_beta']))
         self.batch_norm3.running_mean = t.nn.Parameter(t.Tensor(data['batch_norm3_moving_mean']),
                                                        requires_grad=False)
         self.batch_norm3.running_var = t.nn.Parameter(t.Tensor(data['batch_norm3_moving_var']),
                                                       requires_grad=False)
 
         # load dense layer
-        assert data['dense_w'].shape == tuple(self.fc.weight.shape)
-        assert data['dense_b'].shape == tuple(self.fc.bias.shape)
         self.fc.weight = t.nn.Parameter(t.Tensor(data['dense_w']))
         self.fc.bias = t.nn.Parameter(t.Tensor(data['dense_b']))
 
@@ -264,7 +246,7 @@ class ConstrainedLinear(t.nn.Linear):
                         self.bias)
 
 
-class WrongDropout2d(t.nn.Dropout2d):
+class TimeDropout2d(t.nn.Dropout2d):
     """
     Dropout layer, where the last dimension is treated as channels
     """
@@ -272,7 +254,7 @@ class WrongDropout2d(t.nn.Dropout2d):
         """
         See t.nn.Dropout2d for parameters
         """
-        super(WrongDropout2d, self).__init__(p=p, inplace=inplace)
+        super(TimeDropout2d, self).__init__(p=p, inplace=inplace)
 
     def forward(self, input):
         if self.training:

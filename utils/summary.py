@@ -29,7 +29,9 @@ def print_summary(model, optimizer, loss_function, scheduler=None, batch_size=-1
 
         # print optimizer, loss function and scheduler
         optim_table = []
-        if isinstance(optimizer, torch.optim.Adam):
+        if optimizer is None:
+            optim_table.append(["Optimizer", "None"])
+        elif isinstance(optimizer, torch.optim.Adam):
             optim_table.append(["Optimizer", "Adam"])
             optim_table.append(["> learning rate", optimizer.defaults['lr']])
         elif isinstance(optimizer, torch.optim.SGD):
