@@ -79,10 +79,11 @@ def train_subject_specific_cv(subject, n_splits=4, epochs=500, batch_size=32, lr
             loss_function = t.nn.CrossEntropyLoss()
             optimizer = t.optim.Adam(model.parameters(), lr=lr)
 
-            model, split_metrics, split_epoch = _train_net(subject, model, train_loader, val_loader,
-                                                           loss_function, optimizer, epochs=epochs,
-                                                           early_stopping=early_stopping, plot=plot,
-                                                           pbar=pbar)
+            model, split_metrics, split_epoch, _ = _train_net(subject, model, train_loader,
+                                                              val_loader, loss_function, optimizer,
+                                                              epochs=epochs,
+                                                              early_stopping=early_stopping,
+                                                              plot=plot, pbar=pbar)
 
             metrics[split, :] = split_metrics[0, :]
             best_epoch[split] = split_epoch
@@ -142,13 +143,14 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
 
         # Early stopping is not allowed in this mode, because the testing data cannot be used for
         # training!
-        model, metrics, _ = _train_net(subject, model, train_loader, test_loader, loss_function,
-                                       optimizer, scheduler=scheduler, epochs=epochs,
-                                       early_stopping=False, plot=plot, pbar=pbar)
+        model, metrics, _, history = _train_net(subject, model, train_loader, test_loader,
+                                                loss_function, optimizer, scheduler=scheduler,
+                                                epochs=epochs, early_stopping=False, plot=plot,
+                                                pbar=pbar)
 
     if not silent:
         print(f"Subject {subject}: accuracy = {metrics[0, 0]}")
-    return model, metrics
+    return model, metrics, history
 
 
 def test_model_from_keras(subject, batch_size=32,
@@ -165,10 +167,12 @@ def test_model_from_keras(subject, batch_size=32,
     """
 
     # Just use the default values and hope all dimensions are fine...
-    model = EEGNet()
+    model = EEGNet(activation='elu', constrain_w=False, permuted_flatten=True)
     model.load_model_params_from_keras(f"{folder}model{subject-1}_torch.npz")
     if t.cuda.is_available():
         model = model.cuda()
+
+    print_summary(model, None, None, None)
 
     # get dataloader
     test_samples, test_labels = get_data(subject, training=False)
@@ -199,10 +203,11 @@ def _train_net(subject, model, train_loader, val_loader, loss_function, optimize
      - pbar:           tqdm progress bar or None, in which case no progress will be displayed
                        (not closed afterwards)
 
-    Returns: (model, metrics, epoch)
+    Returns: (model, metrics, epoch, history)
      - model:   t.nn.Module, trained model
      - metrics: t.tensor, size=[1, 4], accuracy, precision, recall, f1
      - epoch:   integer, always equal to 500 if early stopping is not used
+     - history: tuple: (loss, accuracy), where both are t.tensor, size=[2, epochs]
 
     Notes:
      - Model and data will not be moved to gpu, do this outside of this function.
@@ -250,7 +255,7 @@ def _train_net(subject, model, train_loader, val_loader, loss_function, optimize
 
     metrics = get_metrics_from_model(model, val_loader)
 
-    return model, metrics, best_epoch + 1
+    return model, metrics, best_epoch + 1, (loss, accuracy)
 
 
 def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):

@@ -12,6 +12,7 @@ from eegnet_controller import train_subject_specific, train_subject_specific_cv
 from eegnet_controller import test_model_from_keras
 from utils.metrics import metrics_to_csv
 from utils.misc import product_dict
+from utils.plot_results import plot_loss_accuracy
 
 
 DO_CV = False
@@ -22,7 +23,7 @@ N_TRIALS = 20
 
 GRID_SEARCH = False
 
-TEST_KERAS_MODEL = False
+TEST_KERAS_MODEL = True
 
 
 def run(do_cv=False, epochs=500, export=True, silent=False):
@@ -30,6 +31,8 @@ def run(do_cv=False, epochs=500, export=True, silent=False):
     Does one complete run over all data
     """
     metrics = t.zeros((9, 4))
+    loss_history = t.zeros((9, 2, epochs))
+    acc_history = t.zeros((9, 2, epochs))
     for subject in range(1, 10):
         if do_cv:
             # First, do cross validation to determine optimal number of epochs
@@ -38,16 +41,19 @@ def run(do_cv=False, epochs=500, export=True, silent=False):
                                                          plot=False)
             epochs = best_epoch
 
-        _model, subject_metrics = train_subject_specific(subject, epochs=epochs, silent=silent,
-                                                         plot=export, activation='elu',
-                                                         constrain_w=True, p_dropout=0.5,
-                                                         dropout_type='Dropout')
+        _model, subject_metrics, history = \
+            train_subject_specific(subject, epochs=epochs, silent=silent, plot=export,
+                                   activation='relu', constrain_w=False, p_dropout=0.5,
+                                   dropout_type='TimeDropout2D')
+        loss, acc = history
+        loss_history[subject-1, :, :] = loss
+        acc_history[subject-1, :, :] = acc
         metrics[subject-1, :] = subject_metrics[0, :]
 
     if export:
         metrics_to_csv(metrics)
 
-    return metrics
+    return metrics, (loss_history, acc_history)
 
 
 def grid_search(grid_params, epochs=500, silent=False):
@@ -101,8 +107,13 @@ def main():
 
     elif BENCHMARK:
         metrics = t.zeros((N_TRIALS, 9, 4))
+        average_loss = t.zeros((9, 2, N_EPOCHS))
+        average_acc = t.zeros((9, 2, N_EPOCHS))
         for i in tqdm(range(N_TRIALS), ascii=True, desc='Benchmark'):
-            metrics[i, :, :] = run(do_cv=DO_CV, epochs=N_EPOCHS, export=False, silent=True)
+            metrics[i, :, :], history = run(do_cv=DO_CV, epochs=N_EPOCHS, export=False, silent=True)
+            loss, acc = history
+            average_loss += loss
+            average_acc += acc
 
         # generate the average over the first dimension
         # avg_metrics is of size 9, 4, with all 4 scores for all 9 subjects averaged over all trials
@@ -121,6 +132,12 @@ def main():
         print(f"Total Average Accuracy: {overall_avg_acc:.4f} +- {overall_std_acc:.4f}\n")
         for i in range(0, 9):
             print(f"subject {i+1}: accuracy = {avg_metrics[i, 0]:.4f} +- {std_metrics[i, 0]:.4f}")
+
+        # average out the history
+        average_loss /= N_TRIALS
+        average_acc /= N_TRIALS
+        for i in range(9):
+            plot_loss_accuracy(i+1, average_loss[i, :, :], average_acc[i, :, :])
 
     elif GRID_SEARCH:
         # parameters to search
@@ -146,7 +163,7 @@ def main():
 
     else:
         # normal procedure
-        metrics = run(do_cv=DO_CV, epochs=N_EPOCHS, export=True, silent=False)
+        metrics, _ = run(do_cv=DO_CV, epochs=N_EPOCHS, export=True, silent=False)
         print(f"\nAverage Accuracy: {metrics[:,0].mean()}")
 
 
