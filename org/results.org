@@ -10,9 +10,14 @@
 | Torch   | BatchNorm Momentum=0.01                   |    70.0% | 3.8% |       20 |
 | Torch   | ReLU                                      |    69.7% | 3.9% |       20 |
 | Torch   | ReLU, No Constraints                      |    70.1% | 3.5% |       15 |
+| Torch   | ReLU, No Constraints, Max Pool            |    68.4% | 4.2% |       50 |
+| Torch   | ReLU, No Constraints, Second Time Dropout |    71.0% | 3.5% |       50 |
 |---------+-------------------------------------------+----------+------+----------|
 | Keras   | No BatchNorm                              |    63.2% | 3.8% |       20 |
 | Torch   | No BatchNorm                              |    65.3% | 3.6% |       20 |
 |---------+-------------------------------------------+----------+------+----------|
 | Keras   | SGD, lr=0.01                              |    64.5% | 4.9% |       20 |
 | Torch   | SGD, lr=0.01                              |    67.6% | 4.1% |       20 |
+|---------+-------------------------------------------+----------+------+----------|
+| Keras   | First Time Dropout, Second Normal Dropout |    70.5% | 3.4% |       20 |
+| Keras   | First Normal Dropout, Second Time Dropout |    72.6% | 3.4% |       20 |
