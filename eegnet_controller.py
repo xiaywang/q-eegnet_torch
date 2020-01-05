@@ -184,7 +184,7 @@ def test_model_from_keras(subject, batch_size=32,
 
 
 def _train_net(subject, model, train_loader, val_loader, loss_function, optimizer, scheduler=None,
-               epochs=500, early_stopping=True, plot=True, pbar=None):
+               epochs=500, early_stopping=True, plot=True, track_lr=True, pbar=None):
     """
     Main training loop
 
@@ -217,6 +217,9 @@ def _train_net(subject, model, train_loader, val_loader, loss_function, optimize
     # prepare result
     loss = t.zeros((2, epochs))
     accuracy = t.zeros((2, epochs))
+    lr = None
+    if track_lr:
+        lr = t.zeros((epochs))
 
     # prepare early_stopping
     if early_stopping:
@@ -235,6 +238,8 @@ def _train_net(subject, model, train_loader, val_loader, loss_function, optimize
         loss[1, epoch] = validation_loss
         accuracy[0, epoch] = train_accuracy
         accuracy[1, epoch] = validation_accuracy
+        if track_lr:
+            lr[epoch] = optimizer.param_groups[0]['lr']
 
         # do early stopping
         if early_stopping:
@@ -251,7 +256,7 @@ def _train_net(subject, model, train_loader, val_loader, loss_function, optimize
 
     # generate plots
     if plot:
-        generate_plots(subject, model, val_loader, loss, accuracy)
+        generate_plots(subject, model, val_loader, loss, accuracy, lr=lr)
 
     metrics = get_metrics_from_model(model, val_loader)
 

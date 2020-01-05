@@ -13,7 +13,7 @@ from sklearn.metrics import precision_recall_curve, average_precision_score, con
 from .misc import one_hot, class_decision
 
 
-def generate_plots(subject, model, test_loader, loss, accuracy, target_dir=None):
+def generate_plots(subject, model, test_loader, loss, accuracy, lr=None, target_dir=None):
     """
     Generates all plots and stores them on the disk
 
@@ -52,7 +52,7 @@ def generate_plots(subject, model, test_loader, loss, accuracy, target_dir=None)
     y_hat = y_hat.cpu().detach()
 
     # generate loss_accuracy plot
-    plot_loss_accuracy(subject, loss, accuracy, target_dir)
+    plot_loss_accuracy(subject, loss, accuracy, lr, target_dir)
 
     # generate precision recall plot
     plot_precision_recall_curve(subject, y, y_hat, target_dir=target_dir)
@@ -65,7 +65,7 @@ def generate_plots(subject, model, test_loader, loss, accuracy, target_dir=None)
     y = y.cuda()
 
 
-def plot_loss_accuracy(subject, loss, accuracy, target_dir=None):
+def plot_loss_accuracy(subject, loss, accuracy, lr=None, target_dir=None):
     """
     Generates a plot showing the evolution of the loss and the accuracy over all epochs.
 
@@ -93,10 +93,18 @@ def plot_loss_accuracy(subject, loss, accuracy, target_dir=None):
     loss_subfig = fig.add_subplot(121)
     loss_subfig.plot(x, loss[0, :], label="training")
     loss_subfig.plot(x, loss[1, :], label="testing")
+    plt.grid()
+
+    if lr is not None:
+        lr = lr.detach().numpy()
+        lr_axis = loss_subfig.twinx()
+        lr_axis.set_ylabel("Learning Rate")
+        lr_color = plt.rcParams['axes.prop_cycle'].by_key()['color'][2]
+        lr_axis.plot(x, lr, label="Learning Rate", color=lr_color)
+
     loss_subfig.set_title("Loss")
     loss_subfig.set_xlabel("Epoch")
     loss_subfig.legend(loc="upper left")
-    plt.grid()
 
     # do accuracy figure
     accuracy_subfig = fig.add_subplot(122)
