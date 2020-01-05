@@ -8,7 +8,7 @@ class EEGNet(t.nn.Module):
     EEGNet
     """
     def __init__(self, F1=8, D=2, F2=None, C=22, T=1125, N=4, p_dropout=0.5, reg_rate=0.25,
-                 activation='relu', constrain_w=False, dropout_type='dropout',
+                 activation='relu', constrain_w=False, dropout_type='TimeDropout2D',
                  permuted_flatten=False):
         """
         F1:           Number of spectral filters
@@ -67,7 +67,8 @@ class EEGNet(t.nn.Module):
         self.batch_norm2 = t.nn.BatchNorm2d(D * F1, momentum=0.01, eps=0.001)
         self.activation1 = t.nn.ELU(inplace=True) if activation == 'elu' else t.nn.ReLU(inplace=True)
         self.pool1 = t.nn.AvgPool2d((1, 8))
-        self.dropout1 = dropout(p=p_dropout)
+        # self.dropout1 = dropout(p=p_dropout)
+        self.dropout1 = t.nn.Dropout(p=p_dropout)
 
         # Block 2
         # Separable Convolution (as described in the paper) is a depthwise convolution followed by
@@ -78,6 +79,7 @@ class EEGNet(t.nn.Module):
         self.batch_norm3 = t.nn.BatchNorm2d(F2, momentum=0.01, eps=0.001)
         self.activation2 = t.nn.ELU(inplace=True) if activation == 'elu' else t.nn.ReLU(inplace=True)
         self.pool2 = t.nn.AvgPool2d((1, 8))
+        # self.dropout2 = dropout(p=p_dropout)
         self.dropout2 = dropout(p=p_dropout)
 
         # Fully connected layer (classifier)

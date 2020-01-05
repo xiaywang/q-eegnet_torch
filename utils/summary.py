@@ -47,7 +47,7 @@ def print_summary(model, optimizer, loss_function, scheduler=None, batch_size=-1
         elif isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
             optim_table.append(["Scheduler", "Reduce LR on platau"])
             optim_table.append(["> factor", scheduler.factor])
-            optim_table.append(["> pacience", scheduler.pacience])
+            optim_table.append(["> patience", scheduler.patience])
             optim_table.append(["> threshold", scheduler.threshold])
         else:
             raise NotImplementedError(f"{type(scheduler)} is not implemented!")
