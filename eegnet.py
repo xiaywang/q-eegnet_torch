@@ -203,6 +203,13 @@ class EEGNet(t.nn.Module):
         self.fc.weight = t.nn.Parameter(t.Tensor(data['dense_w']))
         self.fc.bias = t.nn.Parameter(t.Tensor(data['dense_b']))
 
+    def is_cuda(self):
+        is_cuda = False
+        for param in self.parameters():
+            if param.is_cuda:
+                is_cuda = True
+        return is_cuda
+
 
 class ConstrainedConv2d(t.nn.Conv2d):
     """

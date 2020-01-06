@@ -82,7 +82,7 @@ def get_data(subject, training, data_path=None, do_filter=False):
 
 def as_tensor(samples, labels):
     """
-    Returns the data as t.tensor, with the correct data type and on the GPU if available
+    Returns the data as t.tensor, with the correct data type
 
     Parameters:
      - samples: np.ndarray, size = [s, C, T]
@@ -95,11 +95,6 @@ def as_tensor(samples, labels):
 
     x = t.tensor(samples).to(dtype=t.float)
     y = t.tensor(labels).to(dtype=t.long) - 1  # labels are from 1 to 4, but torch expects 0 to 3
-
-    # move data to cuda if device is available
-    if t.cuda.is_available():
-        x = x.cuda()
-        y = y.cuda()
 
     return x, y
 

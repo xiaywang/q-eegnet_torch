@@ -225,15 +225,17 @@ def _train_net(subject, model, train_loader, val_loader, loss_function, optimize
     if early_stopping:
         early_stopping = EarlyStopping()
 
+    use_cuda = model.is_cuda()
+
     # train model for all epochs
     for epoch in range(epochs):
         # train the model
         train_loss, train_accuracy = _train_epoch(model, train_loader, loss_function, optimizer,
-                                                  scheduler=scheduler)
+                                                  scheduler=scheduler, use_cuda=use_cuda)
 
         # collect current loss and accuracy
         validation_loss, validation_accuracy = _test_net(model, val_loader, loss_function,
-                                                         train=False)
+                                                         train=False, use_cuda=use_cuda)
         loss[0, epoch] = train_loss
         loss[1, epoch] = validation_loss
         accuracy[0, epoch] = train_accuracy
@@ -263,7 +265,7 @@ def _train_net(subject, model, train_loader, val_loader, loss_function, optimize
     return model, metrics, best_epoch + 1, (loss, accuracy)
 
 
-def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
+def _train_epoch(model, loader, loss_function, optimizer, scheduler=None, use_cuda=None):
     """
     Trains a single epoch
 
@@ -273,15 +275,23 @@ def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
      - loss_function: function
      - optimizer:     t.optim.Optimizer
      - scheduler:     t.optim.lr_scheduler or None
+     - use_cuda:      bool or None, if None, use cuda if the model is on cuda
 
     Returns: loss: float, accuracy: float
     """
+
+    if use_cuda is None:
+        use_cuda = model.is_cuda()
 
     model.train(True)
     n_samples = 0
     running_loss = 0.0
     accuracy = 0.0
     for x, y in loader:
+        if use_cuda:
+            x = x.cuda()
+            y = y.cuda()
+
         # Forward step
         optimizer.zero_grad()
         output = model(x)
@@ -306,7 +316,7 @@ def _train_epoch(model, loader, loss_function, optimizer, scheduler=None):
     return running_loss, accuracy
 
 
-def _test_net(model, loader, loss_function, train=False):
+def _test_net(model, loader, loss_function, train=False, use_cuda=None):
     """
     Tests the model for accuracy
 
@@ -315,9 +325,13 @@ def _test_net(model, loader, loss_function, train=False):
      - loader:        t.utils.DataLoader
      - loss_function: function or None.
      - train:         boolean, if the model is to be set into training or testing mode
+     - use_cuda:      bool or None, if None, use cuda if the model is on cuda
 
     Returns: loss: float, accuracy: float
     """
+    if use_cuda is None:
+        use_cuda = model.is_cuda()
+
     # set the model into testing mode
     model.train(train)
     with t.no_grad():
@@ -328,6 +342,9 @@ def _test_net(model, loader, loss_function, train=False):
 
         # get the data from the loader (only one batch will be available)
         for x, y in loader:
+            if use_cuda:
+                x = x.cuda()
+                y = y.cuda()
 
             # compute the output
             output = model(x)

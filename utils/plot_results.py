@@ -37,9 +37,15 @@ def generate_plots(subject, model, test_loader, loss, accuracy, lr=None, target_
     # necessary to compute the data first
     model.train(False)
 
+    use_cuda = model.is_cuda()
+
     y_hat = None
     y = None
     for x_batch, y_batch in test_loader:
+        if use_cuda:
+            x_batch = x_batch.cuda()
+            y_batch = y_batch.cuda()
+
         output = model(x_batch)
         if y_hat is None and y is None:
             y_hat = output

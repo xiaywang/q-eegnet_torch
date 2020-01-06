@@ -22,9 +22,13 @@ def get_metrics_from_model(model, test_loader):
 
     Returns: t.tensor, size=[1, 4]: accuracy, precision, recall, f1
     """
+    use_cuda = model.is_cuda()
     y_hat = None
     y = None
     for x_batch, y_batch in test_loader:
+        if use_cuda:
+            x_batch = x_batch.cuda()
+            y_batch = y_batch.cuda()
         output = model(x_batch)
         if y_hat is None and y is None:
             y_hat = output
