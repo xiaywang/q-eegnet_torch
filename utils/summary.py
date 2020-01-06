@@ -13,6 +13,7 @@ import numpy as np
 from tabulate import tabulate
 
 _SUMMARY_ALREADY_SHOWN = False
+_IGNORE_LAYERS = [torch.quantization.Observer]
 
 
 def print_summary(model, optimizer, loss_function, scheduler=None, batch_size=-1, device="cuda",
@@ -59,8 +60,9 @@ def print_summary(model, optimizer, loss_function, scheduler=None, batch_size=-1
                        ["F2 (# spatial filters)", model.F2],
                        ["Dropout probability", model.p_dropout],
                        ["Dropout type", model.dropout_type],
-                       ["Constrain weights", model.constrain_w],
-                       ["Activation type", 'ELU' if model.activation == 'elu' else 'ReLU']]
+                       ["Constrain weights", model.__dict__.get('constrain_w', False)],
+                       ["Activation type", 'ELU' if model.__dict__.get('activation', 'relu') ==
+                        'elu' else 'ReLU']]
         print(tabulate(param_table, ['Hyperparameter', 'Value'], tablefmt='orgtbl'))
         print("")
 
@@ -73,6 +75,8 @@ def _model_summary(model, input_size, batch_size=-1, device="cuda", print_mem=Fa
     def register_hook(module):
 
         def hook(module, input, output):
+            if any([isinstance(module, layer) for layer in _IGNORE_LAYERS]):
+                return
             class_name = str(module.__class__).split(".")[-1].split("'")[0]
             module_idx = len(summary)
 
@@ -88,13 +92,10 @@ def _model_summary(model, input_size, batch_size=-1, device="cuda", print_mem=Fa
                 summary[m_key]["output_shape"] = list(output.size())
                 summary[m_key]["output_shape"][0] = batch_size
 
-            params = 0
-            if hasattr(module, "weight") and hasattr(module.weight, "size"):
-                params += torch.prod(torch.LongTensor(list(module.weight.size())))
-                summary[m_key]["trainable"] = module.weight.requires_grad
-            if hasattr(module, "bias") and hasattr(module.bias, "size"):
-                params += torch.prod(torch.LongTensor(list(module.bias.size())))
-            summary[m_key]["nb_params"] = params
+            summary[m_key]["params"] = []
+            for parameter in module.parameters():
+                params = torch.prod(torch.LongTensor(list(parameter.size())))
+                summary[m_key]["params"].append((params, parameter.requires_grad))
 
         if (
             not isinstance(module, nn.Sequential)
@@ -143,12 +144,14 @@ def _model_summary(model, input_size, batch_size=-1, device="cuda", print_mem=Fa
     trainable_params = 0
     for layer in summary:
         # input_shape, output_shape, trainable, nb_params
-        net_table.append([layer, summary[layer]["output_shape"], summary[layer]["nb_params"]])
-        total_params += summary[layer]["nb_params"]
+        layer_nb_params = sum([nb for nb, _ in summary[layer]["params"]])
+        net_table.append([layer, summary[layer]["output_shape"], layer_nb_params])
         total_output += np.prod(summary[layer]["output_shape"])
-        if "trainable" in summary[layer]:
-            if summary[layer]["trainable"]:
-                trainable_params += summary[layer]["nb_params"]
+        for param in summary[layer]["params"]:
+            nb_params, is_trainable = param
+            total_params += nb_params
+            if is_trainable:
+                trainable_params += nb_params
     print(tabulate(net_table, ["layer (type)", "Output shape", "# params"], tablefmt='orgtbl'))
 
     print("")

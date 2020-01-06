@@ -1,9 +1,11 @@
 import numpy as np
 import torch as t
+import torch.quantization as tq
 
 from tqdm import tqdm
 
 from eegnet import EEGNet
+from eegnet_quant import EEGNetQuant
 from utils.get_data import get_data, as_data_loader, as_tensor
 from utils.kfold_cv import KFoldCV
 from utils.plot_results import generate_plots
@@ -147,6 +149,74 @@ def train_subject_specific(subject, epochs=500, batch_size=32, lr=0.001, silent=
                                                 loss_function, optimizer, scheduler=scheduler,
                                                 epochs=epochs, early_stopping=False, plot=plot,
                                                 pbar=pbar)
+
+    if not silent:
+        print(f"Subject {subject}: accuracy = {metrics[0, 0]}")
+    return model, metrics, history
+
+
+def train_subject_specific_quant(subject, epochs=500, batch_size=32, lr=0.001, silent=False,
+                                 plot=True, **kwargs):
+    """
+    Trains a subject specific model for the given subject
+
+    Parameters:
+     - subject:    Integer in the Range 1 <= subject <= 9
+     - epochs:     Number of epochs to train
+     - batch_size: Batch Size
+     - lr:         Learning Rate
+     - silent:     bool, if True, hide all output including the progress bar
+     - plot:       bool, if True, generate plots
+     - kwargs:     Remaining arguments passed to the EEGnet model
+
+    Returns: (model, metrics)
+     - model:   t.nn.Module, trained model
+     - metrics: t.tensor, size=[1, 4], accuracy, precision, recall, f1
+    """
+    # load the data
+    train_samples, train_labels = get_data(subject, training=True)
+    test_samples, test_labels = get_data(subject, training=False)
+    train_loader = as_data_loader(train_samples, train_labels, batch_size=batch_size)
+    # test_loader = as_data_loader(test_samples, test_labels, batch_size=test_labels.shape[0])
+    test_loader = as_data_loader(test_samples, test_labels, batch_size=batch_size)
+
+    # prepare quantization configuration
+    qconfig = tq.QConfig(activation=tq.MinMaxObserver.with_args(dtype=t.quint8),
+                         weight=tq.MinMaxObserver.with_args(dtype=t.qint8))
+
+    # prepare the model
+    model = EEGNetQuant(T=train_samples.shape[2], qconfig=qconfig, **kwargs)
+    model.initialize_params()
+    if t.cuda.is_available():
+        model = model.cuda()
+
+    # prepare the quantization
+    tq.prepare_qat(model, inplace=True)
+
+    # prepare loss function and optimizer
+    loss_function = t.nn.CrossEntropyLoss()
+    optimizer = t.optim.Adam(model.parameters(), lr=lr, eps=1e-7)
+    scheduler = None
+
+    # print the training setup
+    print_summary(model, optimizer, loss_function, scheduler)
+
+    # prepare progress bar
+    with tqdm(desc=f"Subject {subject}", total=epochs, leave=False, disable=silent,
+              unit='epoch', ascii=True) as pbar:
+
+        # Early stopping is not allowed in this mode, because the testing data cannot be used for
+        # training!
+        model, metrics, _, history = _train_net(subject, model, train_loader, test_loader,
+                                                loss_function, optimizer, scheduler=scheduler,
+                                                epochs=epochs, early_stopping=False, plot=plot,
+                                                pbar=pbar)
+
+    # convert the model into a quantized model
+    model = model.cpu()
+    tq.convert(model, inplace=True)
+
+    metrics = get_metrics_from_model(model, test_loader)
 
     if not silent:
         print(f"Subject {subject}: accuracy = {metrics[0, 0]}")

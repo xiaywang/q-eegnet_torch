@@ -8,13 +8,15 @@ import torch as t
 import numpy as np
 from tqdm import tqdm
 
-from eegnet_controller import train_subject_specific, train_subject_specific_cv
+from eegnet_controller import train_subject_specific, train_subject_specific_cv, \
+    train_subject_specific_quant
 from eegnet_controller import test_model_from_keras
 from utils.metrics import metrics_to_csv
 from utils.misc import product_dict
 from utils.plot_results import plot_loss_accuracy
 
 
+QUANTIZED = True
 DO_CV = False
 N_EPOCHS = 500
 
@@ -26,7 +28,7 @@ GRID_SEARCH = False
 TEST_KERAS_MODEL = False
 
 
-def run(do_cv=False, epochs=500, export=True, silent=False):
+def run(do_cv=False, epochs=N_EPOCHS, quantized=QUANTIZED, export=True, silent=False):
     """
     Does one complete run over all data
     """
@@ -41,10 +43,12 @@ def run(do_cv=False, epochs=500, export=True, silent=False):
                                                          plot=False)
             epochs = best_epoch
 
-        _model, subject_metrics, history = \
-            train_subject_specific(subject, epochs=epochs, silent=silent, plot=export,
-                                   activation='relu', constrain_w=False, p_dropout=0.5,
-                                   dropout_type='TimeDropout2D')
+        if quantized:
+            _model, subject_metrics, history = \
+                train_subject_specific_quant(subject, epochs=epochs, silent=silent, plot=export)
+        else:
+            _model, subject_metrics, history = \
+                train_subject_specific(subject, epochs=epochs, silent=silent, plot=export)
         loss, acc = history
         loss_history[subject-1, :, :] = loss
         acc_history[subject-1, :, :] = acc
