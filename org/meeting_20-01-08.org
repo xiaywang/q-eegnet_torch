@@ -1,0 +1,66 @@
+* Meeting 08.01.2020
+SCHEDULED: <2020-01-08 Wed>
+** Progress
+*** Replace Adam with SGD + lr scheduler (failed)
+Cannot reach accuracy of Adam (Only 67% accuracy instead of 71%) 
+Tried with initial lr in range 3 (close to divergence) to 0.1, also multiple configurations for ~ReduceLROnPlateau~
+Probably possible, but not really necessary?
+*** Dropout time slices: Second dropout matters (before fully-connected classification layer)
+When using ~TimeDropout2d~ in torch only for second dropout, reach accuracy of 71% (matching keras with regular dropout)
+*** Quantization with QuantLab
+**** Refactoring to QuantLab successful (same accuracy)
+**** QuantLab takes longer, setting ~num_workers~ in ~DataLoader~ partially fixes the problem, (is now about half as fast when not quantizing)
+**** Quantizing Activations with STE:
+Really bad performance when quantizing in range [-1, 1]
+Patched QuantLab to monitor the range of the activations and quantize accordingly -> works significantly better
+When using relu: first relu, then quantize with ~numLevels~ set to 512 (instead of 256)
+**** Quantizing Weights with INQ:
+Current Schedule: 
+| Epoch | fraction |
+|-------+----------|
+| s     |      0.5 |
+| s+20  |     0.75 |
+| s+40  |    0.875 |
+| s+60  |   0.9375 |
+| s+80  |  0.96875 |
+| s+90  | 0.984375 |
+| s+100 |        1 |
+Idea: give Adam enough time to adapt, but not enough to "feel comfortable"
+Don't know if this approach is good, but it seems to work
+**** Training with Adam
+Adam seems to have problems when starting to quantize at a late epoch, does no longer adapt.
+**** Current Approach: Accuracy = 70.1%
+1. Train with full precision for 500 epochs with Adam, lr=1e-3
+2. Retrain network (reloading Adam) quantized for 200 additional epochs with Adam, lr=1e-4
+| Job \ Epoch  |     1 | 501       | 502  | 520 | 540 |   560 |   580 |   590 | 600 | 700 |
+|--------------+-------+-----------+------+-----+-----+-------+-------+-------+-----+-----|
+| Adam lr      |  1e-3 | rst, 1e-4 |      |     |     |       |       |       |     |     |
+| activations  | float | monitor   | 8bit |     |     |       |       |       |     |     |
+| INQ fraction |     0 |           | 1/2  | 3/4 | 7/8 | 15/16 | 31/32 | 63/64 |   1 |     |
+**** Different approaches (no time to benchmark -> no guarantees)
+***** Quantizing activations from the beginning seems to not perform well. Accuracy stays very low
+***** Adam does not seem to adapt to new quantization, when starting INQ at epoch 500
+***** Quantizing after 200 epochs seems to work, but not as well as the approach above
+accuracy before starting to quantize is no longer reached (between 3% and 10% difference)
+However, this is not always the case...
+*** Quantization with Torch
+For a simple test (to see if quantizing activations really has such a large impact), tried torch QAT.
+However, there are many things not working properly, abandon and work only with QuantLab?
+** Questions
+*** Had to change quiet a bit in Quantlab main.py for benchmarking. Generalize? Different branch? or just Push and ignore divergence?
+**** Create function ~main~ in ~main.py~, and call it with ~if __name__ == "__main__"~
+**** Change ~num_workers~ for ~DataLoader~ to increase performance
+**** Skip ~validPreTrain~, because model is in train mode, and thus, dropout applies
+*** What is a typical approach for the INQ schedule? (found this in ImageNet.MobileNet, works OK I guess)
+*** Quantlab INQ quantization does not include zero with 256 levels. I should probably try with 255 (no time yet)
+*** For Mr Wolf Implementation: 
+**** When using 8bit representation, values are scaled. Do operations in higher precision?
+a = a' * α, where a' is the 8bit representation in range [-128, 127] and α is the scale factor
+w = w' * ω, where w' is the 8bit representation in range [-128, 127] and ω is the scale factor
+y = y' * γ, where y' is the 8bit representation in range [-128, 127] and γ is the scale factor
+
+y = a * w => y' = a * w * (α * ω / γ) = a * w * f with f = (α * ω / γ)
+**** I guess that having no bias makes implementation easier
+*** Do you think that 71% is doable (same as full precision model)?
+** Next Steps
+
