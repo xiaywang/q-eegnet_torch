@@ -51,8 +51,11 @@ However, there are many things not working properly, abandon and work only with 
 **** Create function ~main~ in ~main.py~, and call it with ~if __name__ == "__main__"~
 **** Change ~num_workers~ for ~DataLoader~ to increase performance
 **** Skip ~validPreTrain~, because model is in train mode, and thus, dropout applies
+**** Answer: Add Parameters and Push
 *** What is a typical approach for the INQ schedule? (found this in ImageNet.MobileNet, works OK I guess)
+**** Answer: Exponential works OK-ish
 *** Quantlab INQ quantization does not include zero with 256 levels. I should probably try with 255 (no time yet)
+**** Answer: Yes
 *** For Mr Wolf Implementation: 
 **** When using 8bit representation, values are scaled. Do operations in higher precision?
 a = a' * α, where a' is the 8bit representation in range [-128, 127] and α is the scale factor
@@ -61,6 +64,13 @@ y = y' * γ, where y' is the 8bit representation in range [-128, 127] and γ is 
 
 y = a * w => y' = a * w * (α * ω / γ) = a * w * f with f = (α * ω / γ)
 **** I guess that having no bias makes implementation easier
+**** Answer: Use SIMD MAC command
 *** Do you think that 71% is doable (same as full precision model)?
+**** Answer: Do it better, might be possible
+- Use strategy ~magnitude~
+- Add init method ~uniform~.
+- Quantized weights will no longer be touched. Stop after quant level = 1
+
 ** Next Steps
+*** Try to improve quntization
 

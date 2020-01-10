@@ -29,4 +29,5 @@
 | Engine   | Weight Quant        | Activation Quant    | Options                                                             | Accuracy | std | # Trials |
 |----------+---------------------+---------------------+---------------------------------------------------------------------+----------+-----+----------|
 | -        | float               | float               | Reference                                                           |     71.0 | 3.5 |       50 |
-| Quantlab | INQ 8bit: start 501 | STE 8bit: start 501 | Adam lr=1e-3 for first 500 epochs, Adam lr=1e-4 for last 200 epochs |     70.1 | 3.4 |       20 |
+| Quantlab | RPR 8bit: start 501 | STE 8bit: start 501 | Adam lr=1e-3 for first 500 epochs, Adam lr=1e-4 for last 200 epochs |     70.1 | 3.4 |       20 |
+| Quantlab | INQ 8bit: start 501 | STE 8bit: start 501 | Adam lr=1e-3 reset every INQ Step and STE start, INQ with exp f=3/4 |     69.2 | 3.4 |       20 |
