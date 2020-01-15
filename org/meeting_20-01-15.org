@@ -1,0 +1,49 @@
+* Meeting 15.01.2020
+** Progress
+*** Quantization:
+**** Implemented uniform quantization for INQ
+**** Implemented optimizer reset for STE
+**** Fixed mistakes for quantization
+- Main Problem: INQ schedule contained epoch 1: fraction 0, thus, calculated range at first epoch
+**** Accuracy: 70.6%, compared with 71.0% without quantization
+***** INQ: uniform, RPR, reset Opt, schedule:
+| epoch | fraction |
+|   500 |      0.5 |
+|   510 |     0.75 |
+|   520 |    0.875 |
+|   530 |   0.9375 |
+|   540 |  0.96875 |
+|   550 |  0.98438 |
+|   560 |  0.99219 |
+|   570 |        1 |
+***** STE: monitor epoch: 450, start epoch: 451, reset Opt,
+***** 600 Epochs total
+**** Comparison RPR to regular INQ: RPR is a bit better, about 0.16%
+**** Note: still using AvgPool, MaxPool does perform worse (1% difference)
+**** Ideas to improve (no time to implement / test)
+***** Ignore outliers for determining quantization scale factor (for both INQ and STE)
+***** optimize scale factor
+*** Questions:
+**** Does example code exist?
+***** Loading data / communication with the outside
+***** 
+**** PULP-DSP: How does ~PLP_MATH_LOOPUNROLL~ work? (Example: ~plp_mean_q32s_xpulpv2~):
+
+#+BEGIN_SRC c
+#if defined(PLP_MATH_LOOPUNROLL)
+
+  tmpBS = (blockSize>>1);
+
+  for (blkCnt=0; blkCnt<tmpBS; blkCnt++){
+    sum1 += *pSrc;
+    sum2 += *pSrc;
+  }
+
+  tmpBS = (blockSize%2U);
+
+  for (blkCnt=0; blkCnt<tmpBS; blkCnt++){
+    sum1 += *pSrc;
+  }
+
+#endif // PLP_MATH_LOOPUNROLL
+#+END_SRC

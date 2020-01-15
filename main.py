@@ -16,7 +16,7 @@ from utils.misc import product_dict
 from utils.plot_results import plot_loss_accuracy
 
 
-QUANTIZED = True
+QUANTIZED = False
 DO_CV = False
 N_EPOCHS = 500
 
