@@ -49,3 +49,8 @@ A: Ri5cy can loop data directly from wb to ex, thus no stall.
 A: Check the make files in the SDK
 *** Why does the transform function take much more cycles than instructions? 
 A: Check with GTK Wave, why it uses more cycles
+** Next Steps
+*** Implement naiive approach
+*** Compare with Pulp-NN
+*** Quantize further, check when the thing breaks down
+*** Try to round down in quantlab, such that it has the same behavior as C integer division
