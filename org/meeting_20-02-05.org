@@ -1,0 +1,31 @@
+* Meeting 05.02.2020
+** Progress
+*** Changed the model to round down! Same accuracy!
+*** Implemented the remaining layers on mr wolf
+*** Started optimizing the most significant parts
+*** Generated measurements
+*** Best performance so far: 7.19 MACs/second
+** Implementations (Optimizations, with performance measurements)
+*** Naive Approach
+*** Transpose inputs of layer 2 and 4
+*** Apply the scale factor inside the convolution / dot product
+*** Parallelize layer 1, layer 1 flip and layer 2
+*** Stream data for layer 2 (where possible)
+*** Use cross correlation instead of convolutions
+*** Fuse layer 1 and 2
+*** (Do not scale the values between Layer 1 and 2, not fully tested)
+** Future Improvements
+*** Parallelize layer 3 and 4 (possible gain is around 10%)
+** Questions:
+*** There exists still a difference between my integer implementation and the qunatized model in quantlab.
+A: This can be explained by considering that we do multiple operations between two quantizations
+** Next Steps
+*** EEGNet
+**** Parallelize layer 3 and 4
+**** Implement a similar network in pulp-NN to compare
+*** Multiscale BCI
+**** Quantize
+**** Implement the filters and the first matrix multiplication in pulp (quantized)
+**** Search for an implementation for SVD (Singular Value Decomposition) on MCU, possibly in float
+**** Keep the Riemann kernel in floating point for PULP
+**** Try to get this to work in the next 5 weeks
