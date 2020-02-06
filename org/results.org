@@ -39,8 +39,8 @@
 |  7 | Quantlab | RPR 5bit: start 700, f=1/2 | STE 5bit: start 300 | Adam lr=1e-3 reset every Step, 900 epochs  |     69.9 | 2.9 |       20 |
 |  8 | Quantlab | RPR 4bit: start 700, f=1/2 | STE 4bit: start 300 | Adam lr=1e-3 reset every Step, 900 epochs  |     65.3 | 3.1 |       20 |
 |  8 | Quantlab | RPR 4bit: start 700, f=1/2 | STE 4bit: io: 8bit  | Adam lr=1e-3 reset every Step, 900 epochs  |     68.3 | 3.6 |       20 |
-|  9 | Quantlab | RPR 4bit: start 700, f=1/2 | STE 4bit: io: 8bit  | Adam lr=1e-3 reset every Step, 1200 epochs |     70.2 | 3.7 |       20 |
-| 10 | Quantlab | RPR 8bit: start 550, f=1/2 | STE 8bit: start 500 | Adam lr=1e-3, 650 epochs, floor            |     70.9 | 3.2 |       20 |
+|  9 | Quantlab | RPR 4bit: start 700, f=1/2 | STE 4bit: io: 8bit  | Adam lr=1e-3 reset every Step, 1200 epochs |     70.5 | 3.6 |       20 |
+| 10 | Quantlab | RPR 8bit: start 550, f=1/2 | STE 8bit: start 500 | Adam lr=1e-3, 650 epochs, floor            |     70.7 | 3.2 |       20 |
 
 ** Wrong Quantization Measurements
 | Engine   | Weight Quant               | Activation Quant    | Options                                                                        | Accuracy | std | # Trials |
